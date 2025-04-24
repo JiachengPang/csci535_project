@@ -22,7 +22,7 @@ def main():
   train_loader, val_loader, test_loader = get_iemocap_data_loaders(
     path='./iemocap', 
     precomputed=False, 
-    batch_size=4, 
+    batch_size=16, 
     num_workers=0,
     collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
     # first_n=100
