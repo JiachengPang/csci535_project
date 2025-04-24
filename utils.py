@@ -2,6 +2,8 @@ import torch
 from datasets import load_from_disk
 from torch.utils.data import DataLoader
 from custom_datasets import IEMOCAPDataset
+import json
+import os
 
 def get_iemocap_data_loaders(path, precomputed, batch_size=16, num_workers=0, seed=42, collate_fn=None, first_n=0):
   ds = load_from_disk(path)['train']
@@ -37,3 +39,42 @@ def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
   labels = torch.tensor(labels, dtype=torch.long)
 
   return {'text_inputs': text_inputs, 'audio_inputs': audio_inputs, 'labels': labels}
+
+class MetricsLogger:
+  def __init__(self, save_path):
+    self.save_path = save_path
+    self.history = {
+      "train_loss": [],
+      "train_acc": [],
+      "train_f1": [],
+      "val_loss": [],
+      "val_acc": [],
+      "val_f1": [],
+      "test_loss": [],
+      "test_acc": [],
+      "test_f1": [],
+    }
+
+  def log_train(self, loss, acc, f1):
+    self.history["train_loss"].append(loss)
+    self.history["train_acc"].append(acc)
+    self.history["train_f1"].append(f1)
+
+  def log_val(self, loss, acc, f1):
+    self.history["val_loss"].append(loss)
+    self.history["val_acc"].append(acc)
+    self.history["val_f1"].append(f1)
+
+  def log_test(self, loss, acc, f1):
+    self.history["test_loss"].append(loss)
+    self.history["test_acc"].append(acc)
+    self.history["test_f1"].append(f1)
+
+  def save(self):
+    with open(self.save_path, "w") as f:
+      json.dump(self.history, f, indent=2)
+
+  def load(self):
+    if os.path.exists(self.save_path):
+      with open(self.save_path, "r") as f:
+        self.history = json.load(f)
