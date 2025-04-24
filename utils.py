@@ -78,3 +78,133 @@ class MetricsLogger:
     if os.path.exists(self.save_path):
       with open(self.save_path, "r") as f:
         self.history = json.load(f)
+
+def get_iemocap_datasets_ddp(path, precomputed, seed=42, first_n=0):
+    """
+    Loads IEMOCAP data from disk, splits it, and returns Dataset objects
+    suitable for use with DistributedDataParallel.
+
+    Args:
+        path (str): Path to the saved dataset directory (loadable by datasets.load_from_disk).
+        precomputed (bool): Flag indicating if the dataset contains precomputed embeddings.
+                            This is passed to the IEMOCAPDataset constructor.
+        seed (int): Random seed for train/test splitting.
+        first_n (int): If > 0, use only the first N samples for quick testing.
+
+    Returns:
+        tuple: (train_dataset, val_dataset, test_dataset) where each element
+               is an instance of IEMOCAPDataset.
+    """
+    print(f"--- Loading IEMOCAP dataset from disk: {path} ---")
+    try:
+        # Load the full dataset (expecting 'train' split or similar)
+        # Adjust split name if your saved dataset uses a different one
+        ds = load_from_disk(path)['train']
+        print(f"Dataset loaded successfully. Original size: {len(ds)}")
+    except Exception as e:
+        print(f"ERROR loading dataset from disk: {e}")
+        print("Please ensure the path is correct and the dataset was saved properly.")
+        # Returning None or empty datasets to signal failure
+        return None, None, None
+
+
+    # Allow using a smaller subset for testing
+    if first_n > 0:
+        print(f"Selecting first {min(first_n, len(ds))} samples.")
+        ds = ds.select(range(min(first_n, len(ds))))
+
+    # Split into 80% train, 10% val, 10% test
+    print(f"Splitting dataset (seed={seed})...")
+    ds_split_test = ds.train_test_split(test_size=0.2, seed=seed, shuffle=True)
+    # Split the 20% test set into 10% validation and 10% test
+    ds_split_val_test = ds_split_test['test'].train_test_split(test_size=0.5, seed=seed, shuffle=True)
+
+    # Get the actual data splits (these are Hugging Face Dataset objects)
+    train_data = ds_split_test['train']
+    val_data = ds_split_val_test['train'] # The 'train' part of the second split is validation
+    test_data = ds_split_val_test['test']  # The 'test' part of the second split is test
+
+    print("Wrapping data splits with IEMOCAPDataset...")
+    # Create IEMOCAPDataset instances
+    train_ds = IEMOCAPDataset(train_data, precomputed=precomputed)
+    val_ds = IEMOCAPDataset(val_data, precomputed=precomputed)
+    test_ds = IEMOCAPDataset(test_data, precomputed=precomputed)
+
+    print(f'Dataset instances created. Train: {len(train_ds)}, Val: {len(val_ds)}, Test: {len(test_ds)}')
+
+    return train_ds, val_ds, test_ds
+
+
+def collate_fn_raw_ddp(batch, tokenizer, processor, sampling_rate=16000):
+    """
+    Collates a batch of raw data points (audio_array, text, label) from
+    IEMOCAPDataset for DDP training. Processes text and audio using the
+    provided tokenizer and processor.
+
+    Args:
+        batch (list): A list of dictionaries from IEMOCAPDataset.__getitem__
+                      (when precomputed=False). Expected keys: 'audio_array', 'text', 'label'.
+        tokenizer: Initialized Hugging Face tokenizer.
+        processor: Initialized Hugging Face feature extractor.
+        sampling_rate (int): The target sampling rate expected by the processor.
+
+    Returns:
+        dict: A dictionary containing the processed batch:
+              {'text_inputs': dict, 'audio_inputs': dict, 'labels': tensor}.
+              Modalities dicts will be empty if no valid data is found.
+    """
+    # Extract data based on keys from IEMOCAPDataset (precomputed=False)
+    texts = [item.get('text') for item in batch]
+    audio_arrays = [item.get('audio_array') for item in batch]
+    labels = [item.get('label', -1) for item in batch] # Default label if missing
+
+    # --- Process Text Inputs ---
+    valid_texts = [t for t in texts if isinstance(t, str)]
+    text_inputs_dict = {}
+    if valid_texts:
+        try:
+            processed_texts = tokenizer(
+                valid_texts, padding='longest', truncation=True, return_tensors="pt", max_length=512
+            )
+            text_inputs_dict = {
+                'input_ids': processed_texts['input_ids'],
+                'attention_mask': processed_texts['attention_mask']
+            }
+        except Exception as e:
+            print(f"ERROR during text tokenization: {e}")
+            # Depending on desired behavior, could raise e or return empty
+            text_inputs_dict = {}
+    # else: text_inputs_dict remains empty if no valid texts
+
+    # --- Process Audio Inputs ---
+    # Filter out None or potentially invalid audio arrays
+    valid_audio = [a for a in audio_arrays if a is not None]
+    audio_inputs_dict = {}
+    if valid_audio:
+        try:
+            processed_audio = processor(
+                valid_audio, sampling_rate=sampling_rate, padding='longest', return_tensors="pt"
+            )
+            audio_inputs_dict = {
+                'input_values': processed_audio['input_values'],
+                'attention_mask': processed_audio.get('attention_mask', None) # Include mask if processor provides it
+            }
+            # Remove attention_mask if None (optional, depends on model needs)
+            if audio_inputs_dict.get('attention_mask') is None:
+                audio_inputs_dict.pop('attention_mask', None)
+        except Exception as e:
+            print(f"ERROR during audio processing: {e}")
+            # Log types/shapes for debugging if errors occur
+            # for i, a in enumerate(valid_audio): print(f"Audio item {i} type: {type(a)}, shape/len: {getattr(a, 'shape', len(a))}")
+            # Depending on desired behavior, could raise e or return empty
+            audio_inputs_dict = {}
+    # else: audio_inputs_dict remains empty if no valid audio
+
+    # --- Final Batch Structure ---
+    final_batch = {
+        'text_inputs': text_inputs_dict,
+        'audio_inputs': audio_inputs_dict,
+        'labels': torch.tensor(labels, dtype=torch.long)
+    }
+
+    return final_batch
