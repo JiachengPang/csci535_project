@@ -26,27 +26,30 @@ def setup(rank, world_size):
     # torchrun automatically sets MASTER_ADDR and MASTER_PORT env variables
     # We can use init_method='env://'
 
-    # *** Trying 'gloo' backend for diagnostics ***
-    backend_to_try = "gloo"
+    # *** Switching back to 'nccl' backend ***
+    backend_to_try = "nccl"
     print(f"Rank {rank}/{world_size}: Attempting to initialize process group using 'env://' (backend: {backend_to_try})...")
 
-    # Add a timeout (e.g., 60 seconds)
-    timeout_delta = datetime.timedelta(seconds=60)
+    # Increase timeout slightly (e.g., 120 seconds)
+    timeout_delta = datetime.timedelta(seconds=120)
     dist.init_process_group(
-        backend=backend_to_try, # Use 'gloo' instead of 'nccl'
+        backend=backend_to_try, # Use 'nccl'
         init_method="env://", # Use environment variables set by torchrun
         world_size=world_size,
         rank=rank,
         timeout=timeout_delta
     )
-    # Pin each process to a specific GPU (still recommended even with gloo if using GPUs)
+    # Pin each process to a specific GPU
     if torch.cuda.is_available():
          torch.cuda.set_device(rank)
          print(f"Rank {rank}/{world_size}: Process group initialized (backend: {backend_to_try}), assigned to cuda:{rank}")
     else:
-         print(f"Rank {rank}/{world_size}: Process group initialized (backend: {backend_to_try}), running on CPU")
+         # This case should ideally not happen if world_size > 0 based on launch logic
+         print(f"ERROR Rank {rank}: NCCL backend requires CUDA but CUDA not available.")
+         raise RuntimeError("NCCL backend requires CUDA")
 
     # Removed barrier from here in previous step
+
 
 
 def cleanup():
@@ -293,7 +296,9 @@ def main_worker(rank, world_size, args):
                 }
                 checkpoint_path = args['checkpoint_path']
                 # Ensure directory exists
-                os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+                checkpoint_dir = os.path.dirname(checkpoint_path)
+                if checkpoint_dir: # Only call makedirs if dirname is not empty
+                    os.makedirs(checkpoint_dir, exist_ok=True)
                 torch.save(save_obj, checkpoint_path)
                 print(f"  Best model checkpoint saved to '{checkpoint_path}'")
 
@@ -413,7 +418,7 @@ if __name__ == '__main__':
         "batch_size_per_gpu": 16,       # Batch size FOR EACH GPU
         "num_workers": 0,               # Dataloader workers per GPU (often 0 or low for DDP)
         "learning_rate": 1e-4,          # Base learning rate
-        "epochs": 20,
+        "epochs": 50,
         "patience": 5,                  # Early stopping patience
         "seed": 42,                     # Random seed for reproducibility
         "sampling_rate": 16000,         # Audio sampling rate for processor
