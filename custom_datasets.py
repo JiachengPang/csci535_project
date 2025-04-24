@@ -6,7 +6,7 @@ class IEMOCAPDataset(Dataset):
     super().__init__()
     self.ds = ds
     self.precomputed = precomputed
-    emotion_labels = ['neutral', 'happy', 'sad', 'angry', 'frustrated', 'excited', 'fear', 'disgust', 'surprise', 'other']
+    emotion_labels = ['angry', 'frustrated', 'happy', 'sad', 'neutral']
     self.label_to_idx = {label: idx for idx, label in enumerate(emotion_labels)}
   
   def __len__(self):

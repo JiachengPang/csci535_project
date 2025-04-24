@@ -4,13 +4,28 @@ from torch.utils.data import DataLoader
 from custom_datasets import IEMOCAPDataset
 import json
 import os
+from collections import Counter
 
 def get_iemocap_data_loaders(path, precomputed, batch_size=16, num_workers=0, seed=42, collate_fn=None, first_n=0):
   ds = load_from_disk(path)['train']
+
+  def merge_excited(example):
+    if example['major_emotion'] == 'excited':
+      example['major_emotion'] = 'happy'
+    return example
+  ds = ds.map(merge_excited)
+
+  target_labels = ['angry', 'frustrated', 'happy', 'sad', 'neutral']
+  ds = ds.filter(lambda d: d['major_emotion'] in target_labels)
   
   # allow smaller ds
   if first_n > 0:
     ds = ds.select(range(min(first_n, len(ds))))
+
+  label_counts = Counter(ds['major_emotion'])
+  print("Distribution after filtering:")
+  for label, count in label_counts.items():
+    print(f"{label}: {count}")
 
   # split into 80% train, 10% val, 10% test
   ds = ds.train_test_split(test_size=0.2, seed=seed)
@@ -56,19 +71,19 @@ class MetricsLogger:
     }
 
   def log_train(self, loss, acc, f1):
-    self.history["train_loss"].append(loss)
-    self.history["train_acc"].append(acc)
-    self.history["train_f1"].append(f1)
+    self.history["train_loss"].append(float(loss))
+    self.history["train_acc"].append(float(acc))
+    self.history["train_f1"].append(float(f1))
 
   def log_val(self, loss, acc, f1):
-    self.history["val_loss"].append(loss)
-    self.history["val_acc"].append(acc)
-    self.history["val_f1"].append(f1)
+    self.history["val_loss"].append(float(loss))
+    self.history["val_acc"].append(float(acc))
+    self.history["val_f1"].append(float(f1))
 
   def log_test(self, loss, acc, f1):
-    self.history["test_loss"].append(loss)
-    self.history["test_acc"].append(acc)
-    self.history["test_f1"].append(f1)
+    self.history["test_loss"].append(float(loss))
+    self.history["test_acc"].append(float(acc))
+    self.history["test_f1"].append(float(f1))
 
   def save(self):
     with open(self.save_path, "w") as f:
