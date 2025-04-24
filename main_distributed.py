@@ -414,7 +414,7 @@ if __name__ == '__main__':
         "checkpoint_path": "xnorm_checkpoint_ddp.pth",
         "audio_checkpoint": 'facebook/hubert-base-ls960',
         "text_checkpoint": 'roberta-base',
-        "emotion_labels": ['neutral', 'happy', 'sad', 'angry', 'frustrated', 'excited', 'fear', 'disgust', 'surprise', 'other'],
+        "emotion_labels": ['angry', 'frustrated', 'happy', 'sad', 'neutral'],
         "batch_size_per_gpu": 16,       # Batch size FOR EACH GPU
         "num_workers": 0,               # Dataloader workers per GPU (often 0 or low for DDP)
         "learning_rate": 1e-4,          # Base learning rate

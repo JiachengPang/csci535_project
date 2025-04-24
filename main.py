@@ -11,7 +11,8 @@ def main():
   torch.backends.cuda.matmul.allow_tf32 = False
   logger = MetricsLogger(save_path="xnorm_training_metrics.json")
 
-  emotion_labels = ['neutral', 'happy', 'sad', 'angry', 'frustrated', 'excited', 'fear', 'disgust', 'surprise', 'other']
+  emotion_labels = ['angry', 'frustrated', 'happy', 'sad', 'neutral']
+  # emotion_labels = ['neutral', 'happy', 'sad', 'angry', 'frustrated', 'excited', 'fear', 'disgust', 'surprise', 'other']
 
   audio_checkpoint = 'facebook/hubert-base-ls960'
   text_checkpoint = 'roberta-base'
