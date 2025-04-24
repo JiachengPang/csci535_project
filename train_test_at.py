@@ -182,9 +182,6 @@ def train_test(args):
 
     model.to(args.device)
 
-    # if torch.cuda.device_count() > 1:
-    #     model = nn.DataParallel(model)
-
     print(
         "\t Model Loaded | Trainable Params:",
         sum(p.numel() for p in model.parameters() if p.requires_grad),
