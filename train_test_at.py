@@ -56,7 +56,6 @@ def parse_options():
     parser.add_argument(
         "--num_latent", type=int, default=4, help="number of latent tokens"
     )
-    parser.add_argument("--num_classes", type=int, default=4, help="number of classes")
     parser.add_argument(
         "--precomputed", action="store_true", help="use precomputed features"
     )
@@ -162,8 +161,23 @@ def train_test(args):
         num_workers=4,
     )
 
+    emotion_labels = [
+        "neutral",
+        "happy",
+        "sad",
+        "angry",
+        "frustrated",
+        "excited",
+        "fear",
+        "disgust",
+        "surprise",
+        "other",
+    ]
+
+    num_classes = len(emotion_labels)
+
     model = ATmodel(
-        num_classes=args.num_classes, num_latents=args.num_latent, dim=args.adapter_dim
+        num_classes=num_classes, num_latents=args.num_latent, dim=args.adapter_dim
     )
 
     model.to(args.device)
