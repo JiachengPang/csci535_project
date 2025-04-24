@@ -8,6 +8,39 @@ from models.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
 
 
+class EarlyStopping:
+    def __init__(
+        self,
+        patience=5,
+        min_delta=0.001,
+        checkpoint_path="best_model.pth",
+        verbose=True,
+    ):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.checkpoint_path = checkpoint_path
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+
+    def __call__(self, val_acc, model):
+        if self.best_score is None or val_acc > self.best_score + self.min_delta:
+            self.best_score = val_acc
+            self.counter = 0
+            torch.save(model.state_dict(), self.checkpoint_path)
+            if self.verbose:
+                print(
+                    f"Validation accuracy improved. Saving model to {self.checkpoint_path}"
+                )
+        else:
+            self.counter += 1
+            if self.verbose:
+                print(f"EarlyStopping counter: {self.counter} out of {self.patience}")
+            if self.counter >= self.patience:
+                self.early_stop = True
+
+
 def parse_options():
     parser = argparse.ArgumentParser(description="Audio-Text AdaptFormer Training")
     parser.add_argument("--gpu_id", type=str, default="cuda:0", help="the gpu id")
@@ -31,22 +64,6 @@ def parse_options():
     torch.manual_seed(opts.seed)
     opts.device = torch.device(opts.gpu_id)
     return opts
-
-
-# def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
-#     texts = [item["text"] for item in batch]
-#     audios = [item["audio_array"] for item in batch]
-#     labels = [item["label"] for item in batch]
-
-#     text_inputs = text_tokenizer(
-#         texts, padding=True, truncation=True, return_tensors="pt"
-#     )
-#     audio_inputs = audio_processor(
-#         audios, sampling_rate=sampling_rate, padding=True, return_tensors="pt"
-#     )
-#     labels = torch.tensor(labels, dtype=torch.long)
-
-#     return {"text_inputs": text_inputs, "audio_inputs": audio_inputs, "labels": labels}
 
 
 def collate_fn(batch):
@@ -121,11 +138,8 @@ def train_test(args):
     from datasets import load_from_disk
 
     raw_dataset = load_from_disk("iemocap")
-
     train_ds = IEMOCAPDataset(raw_dataset["train"], args.precomputed)
-    # test_ds = IEMOCAPDataset(raw_dataset["test"], args.precomputed)
 
-    # Split the dataset into train and test sets
     test_size = int(0.2 * len(train_ds))
     train_size = len(train_ds) - test_size
     train_ds, test_ds = torch.utils.data.random_split(
@@ -151,7 +165,12 @@ def train_test(args):
     model = ATmodel(
         num_classes=args.num_classes, num_latents=args.num_latent, dim=args.adapter_dim
     )
+
     model.to(args.device)
+
+    # if torch.cuda.device_count() > 1:
+    #     model = nn.DataParallel(model)
+
     print(
         "\t Model Loaded | Trainable Params:",
         sum(p.numel() for p in model.parameters() if p.requires_grad),
@@ -159,6 +178,7 @@ def train_test(args):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
+    early_stopper = EarlyStopping(patience=5, checkpoint_path="best_model.pth")
 
     best_acc = 0
     for epoch in range(args.num_epochs):
@@ -172,9 +192,22 @@ def train_test(args):
         print(
             f"Epoch {epoch + 1}: Train Loss {train_loss:.4f}, Train Acc {train_acc:.2f}%, Val Loss {val_loss:.4f}, Val Acc {val_acc:.2f}%"
         )
+
+        early_stopper(val_acc, model)
+        if early_stopper.early_stop:
+            print("Early stopping triggered. Stopping training.")
+            break
+
         best_acc = max(best_acc, val_acc)
 
     print("\nBest Validation Accuracy:", round(best_acc, 2), "%")
+
+    # Load best model for evaluation
+    model.load_state_dict(torch.load("best_model.pth"))
+    final_test_loss, final_test_acc = val_one_epoch(
+        testloader, model, loss_fn, args.device, args.precomputed
+    )
+    print(f"Final Test Accuracy (Best Model): {final_test_acc:.2f}%")
 
 
 if __name__ == "__main__":
