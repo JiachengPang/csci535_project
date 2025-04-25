@@ -240,18 +240,7 @@ def main():
         pin_memory=True,
     )
 
-    emotion_labels = [
-        "neutral",
-        "happy",
-        "sad",
-        "angry",
-        "frustrated",
-        "excited",
-        "fear",
-        "disgust",
-        "surprise",
-        "other",
-    ]
+    emotion_labels = ["angry", "frustrated", "happy", "sad", "neutral"]
 
     num_classes = len(emotion_labels)
 
