@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from transformers import RobertaModel, HubertModel
 
@@ -107,3 +108,26 @@ class XNormModel(nn.Module):
 
     logits = self.weight * t_logits + (1 - self.weight) * a_logits
     return logits
+
+class EarlyFusionModel(nn.Module):
+  def __init__(self, text_input_size=768, audio_input_size=768, hidden_size=512, num_classes=5, dropout=0.1):
+    super().__init__()
+    self.classifier = Classifier(text_input_size + audio_input_size, hidden_size, num_classes, dropout)
+
+  def forward(self, audio_emb, text_emb):
+    features = torch.cat((audio_emb, text_emb), dim=1)
+    out = self.classifier(features)
+    return out
+
+class LateFusionModel(nn.Module):
+  def __init__(self, text_input_size=768, audio_input_size=768, hidden_size=512, num_classes=5, dropout=0.1):
+    super().__init__()
+    self.text_classifier = Classifier(text_input_size, hidden_size, num_classes, dropout)
+    self.audio_classifier = Classifier(audio_input_size, hidden_size, num_classes, dropout)
+  
+  def forward(self, audio_emb, text_emb):
+    audio_logits = self.audio_classifier(audio_emb)
+    text_logits = self.text_classifier(text_emb)
+
+    final_logits = (audio_logits.float() + text_logits.float()) / 2.0
+    return final_logits

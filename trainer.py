@@ -12,14 +12,23 @@ class Trainer:
     self.device = device
   
   def step(self, batch):
-    text_inputs = {
-      k: (v.to(self.device).bool() if k == 'attention_mask' else v.to(self.device))
-      for k, v in batch['text_inputs'].items()
-    }
-    audio_inputs = {k: v.to(self.device) for k, v in batch['audio_inputs'].items()}
-    labels = batch['labels'].to(self.device)
-
-    logits = self.model(text_inputs, audio_inputs)
+    if 'text_inputs' in batch and 'audio_inputs' in batch:
+      text_inputs = {
+        k: (v.to(self.device).bool() if k == 'attention_mask' else v.to(self.device))
+        for k, v in batch['text_inputs'].items()
+      }
+      audio_inputs = {k: v.to(self.device) for k, v in batch['audio_inputs'].items()}
+      logits = self.model(text_inputs, audio_inputs)
+    else:
+      inputs = {k: v.to(self.device) for k, v in batch.items() if k != 'label'}
+      logits = self.model(**inputs)
+    
+    labels = batch['label'].to(self.device) if 'label' in batch else batch['labels'].to(self.device)
+    if torch.any(labels >= logits.size(1)) or torch.any(labels < 0):
+      print("🚨 Invalid label found!")
+      print("Labels:", labels)
+      print("Logits shape:", logits.shape)
+      exit()
     loss = F.cross_entropy(logits, labels)
     preds = torch.argmax(logits, dim=-1)
     return loss, preds, labels
