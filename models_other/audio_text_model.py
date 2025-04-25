@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import HubertModel, RobertaModel, HubertConfig, RobertaConfig
-from .pet_modules import AdaptFormer
+from .pet_modules import AdaptFormerAT
 
 
 class ATmodel(nn.Module):
@@ -35,7 +35,7 @@ class ATmodel(nn.Module):
 
         self.audio_text_blocks = nn.Sequential(
             *[
-                AdaptFormer(
+                AdaptFormerAT(
                     num_latents,
                     dim,
                     self.audio_encoder.encoder.layers[i],
