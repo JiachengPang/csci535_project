@@ -127,7 +127,11 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
     model.eval()
     total_loss, total_correct, total_samples = 0, 0, 0
     with torch.no_grad():
-        for a, t, l in loader:
+        for batch in loader:
+            a = batch["audio_inputs"].input_values
+            t = batch["text_inputs"].input_ids
+            l = batch["labels"]
+
             a, t, l = a.to(device), t.to(device), l.to(device)
             # mask = mask.to(device) if mask is not None else None
             logits = model(a, t, None)
