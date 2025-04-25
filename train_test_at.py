@@ -102,12 +102,12 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
     model.train()
     total_loss, total_correct, total_samples = 0, 0, 0
 
-    for a, t, l, mask in loader:
+    for a, t, l in loader:
         a, t, l = a.to(device), t.to(device), l.to(device)
-        mask = mask.to(device) if mask is not None else None
+        # mask = mask.to(device) if mask is not None else None
 
         optimizer.zero_grad()
-        logits = model(a, t, mask) if not precomputed else model(a, t, None)
+        logits = model(a, t, None)
         loss = loss_fn(logits, l)
         loss.backward()
         optimizer.step()
@@ -123,10 +123,10 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
     model.eval()
     total_loss, total_correct, total_samples = 0, 0, 0
     with torch.no_grad():
-        for a, t, l, mask in loader:
+        for a, t, l in loader:
             a, t, l = a.to(device), t.to(device), l.to(device)
-            mask = mask.to(device) if mask is not None else None
-            logits = model(a, t, mask) if not precomputed else model(a, t, None)
+            # mask = mask.to(device) if mask is not None else None
+            logits = model(a, t, None)
             loss = loss_fn(logits, l)
             total_loss += loss.item()
             total_correct += (logits.argmax(dim=1) == l).sum().item()
