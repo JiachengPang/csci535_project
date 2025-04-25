@@ -19,24 +19,29 @@ class ATmodel(nn.Module):
         self.audio_hidden_size = self.audio_encoder.config.hidden_size  # 768
         self.text_hidden_size = self.text_encoder.config.hidden_size  # 768
 
-        class DummyBlock:
-            def __init__(self, norm1, attn, norm2, mlp):
-                self.norm1 = norm1
-                self.attn = attn
-                self.norm2 = norm2
-                self.mlp = mlp
+        # class DummyBlock:
+        #     def __init__(self, norm1, attn, norm2, mlp):
+        #         self.norm1 = norm1
+        #         self.attn = attn
+        #         self.norm2 = norm2
+        #         self.mlp = mlp
 
-        dummy_layer = DummyBlock(
-            norm1=nn.LayerNorm(768),
-            attn=nn.MultiheadAttention(768, 12, batch_first=True),
-            norm2=nn.LayerNorm(768),
-            mlp=nn.Sequential(nn.Linear(768, 3072), nn.GELU(), nn.Linear(3072, 768)),
-        )
+        # dummy_layer = DummyBlock(
+        #     norm1=nn.LayerNorm(768),
+        #     attn=nn.MultiheadAttention(768, 12, batch_first=True),
+        #     norm2=nn.LayerNorm(768),
+        #     mlp=nn.Sequential(nn.Linear(768, 3072), nn.GELU(), nn.Linear(3072, 768)),
+        # )
 
         self.audio_text_blocks = nn.Sequential(
             *[
-                AdaptFormer(num_latents, dim, dummy_layer, dummy_layer)
-                for _ in range(12)
+                AdaptFormer(
+                    num_latents,
+                    dim,
+                    self.audio_encoder.encoder.layers[i],
+                    self.text_encoder.encoder.layers[i],
+                )
+                for i in range(12)
             ]
         )
 
@@ -70,3 +75,19 @@ class ATmodel(nn.Module):
         fused = self.forward_encoder(audio_tokens, text_tokens)
         logits = self.classifier(fused)
         return logits
+
+
+if __name__ == "__main__":
+    # audio_encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
+    # print(audio_encoder.feature_extractor)
+    # print(audio_encoder.feature_projection)
+    # print(audio_encoder.encoder.pos_conv_embed)
+    # print(audio_encoder.encoder.layer_norm)
+    # print(audio_encoder.encoder.dropout)
+    # print(audio_encoder.encoder.layers)
+
+    # text_encoder = RobertaModel.from_pretrained("roberta-base")
+    # print(text_encoder.embeddings)
+    # print(text_encoder.encoder.layer)
+    # print(text_encoder.pooler)
+    pass
