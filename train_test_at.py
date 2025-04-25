@@ -51,7 +51,7 @@ def parse_options():
     parser.add_argument(
         "--num_epochs", type=int, default=15, help="total training epochs"
     )
-    parser.add_argument("--seed", type=int, default=1111, help="random seed")
+    parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument(
         "--adapter_dim", type=int, default=8, help="dimension of the adapter"
     )

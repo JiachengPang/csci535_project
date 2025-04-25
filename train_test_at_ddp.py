@@ -54,7 +54,7 @@ def parse_options():
     parser.add_argument("--lr", type=float, default=3e-4, help="initial learning rate")
     parser.add_argument("--batch_size", type=int, default=8, help="per‑GPU batch size")
     parser.add_argument("--num_epochs", type=int, default=15, help="training epochs")
-    parser.add_argument("--seed", type=int, default=1111, help="random seed")
+    parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--adapter_dim", type=int, default=8, help="adapter dimension")
     parser.add_argument("--num_latent", type=int, default=4, help="latent tokens")
     parser.add_argument(
