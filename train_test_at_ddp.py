@@ -183,14 +183,14 @@ def main():
     from datasets import load_from_disk
 
     raw_dataset = load_from_disk("iemocap")
-    full_ds = IEMOCAPDataset(raw_dataset["train"], opts.precomputed)
+    # full_ds = IEMOCAPDataset(raw_dataset["train"], opts.precomputed)
 
     def merge_excited(example):
         if example["major_emotion"] == "excited":
             example["major_emotion"] = "happy"
         return example
 
-    merged_ds = full_ds.map(merge_excited)
+    merged_ds = raw_dataset.map(merge_excited)
     target_labels = ["angry", "frustrated", "happy", "sad", "neutral"]
     merged_ds = merged_ds.filter(lambda d: d["major_emotion"] in target_labels)
 
@@ -202,9 +202,9 @@ def main():
     ds = merged_ds.train_test_split(test_size=0.2, seed=42)
     test_val = ds["test"].train_test_split(test_size=0.5, seed=42)
 
-    train_ds = IEMOCAPDataset(ds["train"])
-    val_ds = IEMOCAPDataset(test_val["train"])
-    test_ds = IEMOCAPDataset(test_val["test"])
+    train_ds = IEMOCAPDataset(ds["train"], opts.precomputed)
+    val_ds = IEMOCAPDataset(test_val["train"], opts.precomputed)
+    test_ds = IEMOCAPDataset(test_val["test"], opts.precomputed)
 
     train_sampler = DistributedSampler(train_ds, shuffle=True)
     test_sampler = DistributedSampler(test_ds, shuffle=False)
