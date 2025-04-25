@@ -39,7 +39,7 @@ class ATmodel(nn.Module):
                     num_latents,
                     dim,
                     self.audio_encoder.encoder.layers[i],
-                    self.text_encoder.encoder.layers[i],
+                    self.text_encoder.encoder.layer[i],
                 )
                 for i in range(12)
             ]
