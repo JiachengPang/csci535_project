@@ -52,6 +52,7 @@ class ATmodel(nn.Module):
 
     def forward_audio_features(self, x):
         out = self.audio_encoder.feature_extractor(x)
+        out = out.transpose(1, 2)
         out = self.audio_encoder.feature_projection(out)
         out = self.audio_encoder.encoder.pos_conv_embed(out)
         out = self.audio_encoder.encoder.layer_norm(out)
@@ -70,8 +71,7 @@ class ATmodel(nn.Module):
             audio_tokens, text_tokens = blk(audio_tokens, text_tokens)
 
         audio_cls = audio_tokens[:, 0]
-        text_tokens = self.text_encoder.pooler(text_tokens)
-        text_cls = text_tokens[:, 0]
+        text_cls = self.text_encoder.pooler(text_tokens)
 
         audio_cls = self.norm_audio(audio_cls)
         text_cls = self.norm_text(text_cls)

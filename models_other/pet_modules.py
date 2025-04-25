@@ -276,9 +276,9 @@ class AdaptFormerAT(nn.Module):
     def forward(self, x, y):
         # Bottleneck Fusion
         x, y = self.fusion(x, y)
-
-        x = x + self.a_enc.attention(x, x, x)[0]
-        y = y + self.t_enc.attention(y, y, y)[0]
+        with torch.no_grad():
+            x = x + self.a_enc.attention(x)[0]
+            y = y + self.t_enc.attention(y)[0]
 
         x_ = self.a_enc.dropout(x)
         x_ = self.a_enc.layer_norm(x)
@@ -286,7 +286,7 @@ class AdaptFormerAT(nn.Module):
         x_ = self.a_enc.final_layer_norm(x)
 
         y_ = self.t_enc.intermediate(y)
-        y_ = self.t_enc.dropout(y)
+        y_ = self.t_enc.output(y_, y)
 
         # FFN + skip conections
         x = x + x_ + self.forward_audio_AF(x) * self.a_scale
