@@ -104,7 +104,7 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
 
     for batch in loader:
         a = batch["audio_inputs"].input_values
-        t = batch["text_inputs"].input_values
+        t = batch["text_inputs"].input_ids
         l = batch["labels"]
 
         a, t, l = a.to(device), t.to(device), l.to(device)
