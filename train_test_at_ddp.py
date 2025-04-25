@@ -1,4 +1,5 @@
 import argparse
+from collections import Counter
 import os
 import numpy as np
 import torch
@@ -184,14 +185,30 @@ def main():
     raw_dataset = load_from_disk("iemocap")
     full_ds = IEMOCAPDataset(raw_dataset["train"], opts.precomputed)
 
-    test_size = int(0.2 * len(full_ds))
-    train_size = len(full_ds) - test_size
-    train_ds, test_ds = torch.utils.data.random_split(
-        full_ds, [train_size, test_size], generator=torch.Generator().manual_seed(42)
-    )
+    def merge_excited(example):
+        if example["major_emotion"] == "excited":
+            example["major_emotion"] = "happy"
+        return example
+
+    merged_ds = full_ds.map(merge_excited)
+    target_labels = ["angry", "frustrated", "happy", "sad", "neutral"]
+    merged_ds = merged_ds.filter(lambda d: d["major_emotion"] in target_labels)
+
+    label_counts = Counter(merged_ds["major_emotion"])
+    print("Distribution after filtering:")
+    for label, count in label_counts.items():
+        print(f"{label}: {count}")
+
+    ds = merged_ds.train_test_split(test_size=0.2, seed=42)
+    test_val = ds["test"].train_test_split(test_size=0.5, seed=42)
+
+    train_ds = IEMOCAPDataset(ds["train"])
+    val_ds = IEMOCAPDataset(test_val["train"])
+    test_ds = IEMOCAPDataset(test_val["test"])
 
     train_sampler = DistributedSampler(train_ds, shuffle=True)
     test_sampler = DistributedSampler(test_ds, shuffle=False)
+    val_sampler = DistributedSampler(val_ds, shuffle=False)
 
     train_loader = DataLoader(
         train_ds,
@@ -210,7 +227,28 @@ def main():
         pin_memory=True,
     )
 
-    emotion_labels = ["angry", "frustrated", "happy", "sad", "neutral"]
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=opts.batch_size,
+        sampler=val_sampler,
+        collate_fn=collate_fn,
+        num_workers=4,
+        pin_memory=True,
+    )
+
+    emotion_labels = [
+        "neutral",
+        "happy",
+        "sad",
+        "angry",
+        "frustrated",
+        "excited",
+        "fear",
+        "disgust",
+        "surprise",
+        "other",
+    ]
+
     num_classes = len(emotion_labels)
 
     model = ATmodel(
@@ -249,7 +287,7 @@ def main():
             world_size,
         )
         val_loss, val_acc = val_one_epoch(
-            test_loader, model, loss_fn, opts.device, opts.precomputed, world_size
+            val_loader, model, loss_fn, opts.device, opts.precomputed, world_size
         )
 
         if rank == 0:

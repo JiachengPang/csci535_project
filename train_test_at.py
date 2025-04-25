@@ -7,6 +7,8 @@ from transformers import RobertaTokenizer, Wav2Vec2FeatureExtractor
 from models.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
 
+from utils import get_iemocap_data_loaders, collate_fn_raw
+
 
 class EarlyStopping:
     def __init__(
@@ -65,35 +67,35 @@ def parse_options():
     return opts
 
 
-def collate_fn(batch):
-    if "audio_emb" in batch[0]:
-        audio = torch.stack([item["audio_emb"] for item in batch])
-        text = torch.stack([item["text_emb"] for item in batch])
-        labels = torch.stack([item["label"] for item in batch])
-        return audio, text, labels, None
-    else:
-        processor = Wav2Vec2FeatureExtractor.from_pretrained(
-            "facebook/hubert-base-ls960"
-        )
-        tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
+# def collate_fn(batch):
+#     if "audio_emb" in batch[0]:
+#         audio = torch.stack([item["audio_emb"] for item in batch])
+#         text = torch.stack([item["text_emb"] for item in batch])
+#         labels = torch.stack([item["label"] for item in batch])
+#         return audio, text, labels, None
+#     else:
+#         processor = Wav2Vec2FeatureExtractor.from_pretrained(
+#             "facebook/hubert-base-ls960"
+#         )
+#         tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 
-        audio = [item["audio_array"] for item in batch]
-        text = [item["text"] for item in batch]
-        labels = torch.tensor([item["label"] for item in batch])
+#         audio = [item["audio_array"] for item in batch]
+#         text = [item["text"] for item in batch]
+#         labels = torch.tensor([item["label"] for item in batch])
 
-        audio_inputs = processor(
-            audio, return_tensors="pt", padding=True, sampling_rate=16000
-        )
-        text_inputs = tokenizer(
-            text, return_tensors="pt", padding=True, truncation=True
-        )
+#         audio_inputs = processor(
+#             audio, return_tensors="pt", padding=True, sampling_rate=16000
+#         )
+#         text_inputs = tokenizer(
+#             text, return_tensors="pt", padding=True, truncation=True
+#         )
 
-        return (
-            audio_inputs.input_values,
-            text_inputs.input_ids,
-            labels,
-            text_inputs.attention_mask,
-        )
+#         return (
+#             audio_inputs.input_values,
+#             text_inputs.input_ids,
+#             labels,
+#             text_inputs.attention_mask,
+#         )
 
 
 def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
@@ -134,31 +136,15 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
 
 
 def train_test(args):
-    from datasets import load_from_disk
+    processor = Wav2Vec2FeatureExtractor.from_pretrained("facebook/hubert-base-ls960")
+    tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 
-    raw_dataset = load_from_disk("iemocap")
-    train_ds = IEMOCAPDataset(raw_dataset["train"], args.precomputed)
-
-    test_size = int(0.2 * len(train_ds))
-    train_size = len(train_ds) - test_size
-    train_ds, test_ds = torch.utils.data.random_split(
-        train_ds, [train_size, test_size], generator=torch.Generator().manual_seed(42)
-    )
-    print(f"Train size: {len(train_ds)}, Test size: {len(test_ds)}")
-
-    trainloader = DataLoader(
-        train_ds,
-        batch_size=args.batch_size,
-        collate_fn=collate_fn,
-        shuffle=True,
-        num_workers=4,
-    )
-    testloader = DataLoader(
-        test_ds,
-        batch_size=args.batch_size,
-        collate_fn=collate_fn,
-        shuffle=False,
-        num_workers=4,
+    trainloader, valloader, testloader = get_iemocap_data_loaders(
+        path="./iemocap",
+        precomputed=False,
+        batch_size=16,
+        num_workers=0,
+        collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
     )
 
     emotion_labels = ["angry", "frustrated", "happy", "sad", "neutral"]
@@ -186,7 +172,7 @@ def train_test(args):
             trainloader, model, optimizer, loss_fn, args.device, args.precomputed
         )
         val_loss, val_acc = val_one_epoch(
-            testloader, model, loss_fn, args.device, args.precomputed
+            valloader, model, loss_fn, args.device, args.precomputed
         )
 
         print(
