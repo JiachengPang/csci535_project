@@ -18,7 +18,7 @@ class IEMOCAPDataset(Dataset):
     if self.precomputed:
       audio_emb = torch.tensor(d['audio_embedding'], dtype=torch.float) # (768,)
       text_emb = torch.tensor(d['text_embedding'], dtype=torch.float) # (768,)
-      label = torch.tensor(d['label_id'], dtype=torch.long)
+      label = torch.tensor(self.label_to_idx[d['major_emotion']], dtype=torch.long)
 
       return {'audio_emb': audio_emb, 'text_emb': text_emb, 'label': label}
     else:

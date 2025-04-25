@@ -56,6 +56,7 @@ def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
 
 class MetricsLogger:
   def __init__(self, save_path):
+    print(f'MetricsLogger init to {save_path}')
     self.save_path = save_path
     self.history = {
       "train_loss": [],
