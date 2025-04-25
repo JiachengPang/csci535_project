@@ -150,7 +150,7 @@ def train_test(args):
     trainloader, valloader, testloader = get_iemocap_data_loaders(
         path="./iemocap",
         precomputed=False,
-        batch_size=16,
+        batch_size=args.batch_size,
         num_workers=0,
         collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
     )
