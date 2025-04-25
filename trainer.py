@@ -24,11 +24,6 @@ class Trainer:
       logits = self.model(**inputs)
     
     labels = batch['label'].to(self.device) if 'label' in batch else batch['labels'].to(self.device)
-    if torch.any(labels >= logits.size(1)) or torch.any(labels < 0):
-      print("🚨 Invalid label found!")
-      print("Labels:", labels)
-      print("Logits shape:", logits.shape)
-      exit()
     loss = F.cross_entropy(logits, labels)
     preds = torch.argmax(logits, dim=-1)
     return loss, preds, labels

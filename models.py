@@ -61,7 +61,7 @@ class NormExchange(nn.Module):
 
 
 class XNormModel(nn.Module):
-  def __init__(self, roberta: RobertaModel, hubert: HubertModel, num_classes, hidden_size=768, exchange_layers=[0, 6, 11], weight=0.5):
+  def __init__(self, roberta: RobertaModel, hubert: HubertModel, num_classes, hidden_size=768, exchange_layers=[6, 11], weight=0.5):
     super().__init__()
     self.text_enc = roberta
     self.audio_enc = hubert
@@ -101,7 +101,7 @@ class XNormModel(nn.Module):
         t_hidden, a_hidden = self.norm_exchange(t_hidden, a_hidden, gamma_t, beta_t, gamma_a, beta_a)
 
     t_pooled = t_hidden[:, 0, :]
-    a_pooled = a_hidden[:, 0, :]
+    a_pooled, _ = a_hidden.max(dim=1)
 
     t_logits = self.text_classifier(t_pooled)
     a_logits = self.audio_classifier(a_pooled)
