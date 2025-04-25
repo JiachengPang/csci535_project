@@ -1,7 +1,7 @@
 import copy
 import torch
 from transformers import RobertaModel, RobertaTokenizer, HubertModel, Wav2Vec2FeatureExtractor
-from models import XNormModel
+from models_other import XNormModel
 from utils import get_iemocap_data_loaders, collate_fn_raw, MetricsLogger
 from trainer import Trainer
 

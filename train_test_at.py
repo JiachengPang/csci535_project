@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import RobertaTokenizer, Wav2Vec2FeatureExtractor
-from models.audio_text_model import ATmodel
+from models_other.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
 
 
