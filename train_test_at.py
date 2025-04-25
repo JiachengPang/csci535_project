@@ -4,8 +4,43 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import RobertaTokenizer, Wav2Vec2FeatureExtractor
-from models.audio_text_model import ATmodel
+from models_other.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
+
+from utils import get_iemocap_data_loaders, collate_fn_raw
+
+
+class EarlyStopping:
+    def __init__(
+        self,
+        patience=5,
+        min_delta=0.001,
+        checkpoint_path="best_model.pth",
+        verbose=True,
+    ):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.checkpoint_path = checkpoint_path
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+
+    def __call__(self, val_acc, model):
+        if self.best_score is None or val_acc > self.best_score + self.min_delta:
+            self.best_score = val_acc
+            self.counter = 0
+            torch.save(model.state_dict(), self.checkpoint_path)
+            if self.verbose:
+                print(
+                    f"Validation accuracy improved. Saving model to {self.checkpoint_path}"
+                )
+        else:
+            self.counter += 1
+            if self.verbose:
+                print(f"EarlyStopping counter: {self.counter} out of {self.patience}")
+            if self.counter >= self.patience:
+                self.early_stop = True
 
 
 def parse_options():
@@ -23,7 +58,6 @@ def parse_options():
     parser.add_argument(
         "--num_latent", type=int, default=4, help="number of latent tokens"
     )
-    parser.add_argument("--num_classes", type=int, default=4, help="number of classes")
     parser.add_argument(
         "--precomputed", action="store_true", help="use precomputed features"
     )
@@ -33,63 +67,51 @@ def parse_options():
     return opts
 
 
-# def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
-#     texts = [item["text"] for item in batch]
-#     audios = [item["audio_array"] for item in batch]
-#     labels = [item["label"] for item in batch]
+# def collate_fn(batch):
+#     if "audio_emb" in batch[0]:
+#         audio = torch.stack([item["audio_emb"] for item in batch])
+#         text = torch.stack([item["text_emb"] for item in batch])
+#         labels = torch.stack([item["label"] for item in batch])
+#         return audio, text, labels, None
+#     else:
+#         processor = Wav2Vec2FeatureExtractor.from_pretrained(
+#             "facebook/hubert-base-ls960"
+#         )
+#         tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 
-#     text_inputs = text_tokenizer(
-#         texts, padding=True, truncation=True, return_tensors="pt"
-#     )
-#     audio_inputs = audio_processor(
-#         audios, sampling_rate=sampling_rate, padding=True, return_tensors="pt"
-#     )
-#     labels = torch.tensor(labels, dtype=torch.long)
+#         audio = [item["audio_array"] for item in batch]
+#         text = [item["text"] for item in batch]
+#         labels = torch.tensor([item["label"] for item in batch])
 
-#     return {"text_inputs": text_inputs, "audio_inputs": audio_inputs, "labels": labels}
+#         audio_inputs = processor(
+#             audio, return_tensors="pt", padding=True, sampling_rate=16000
+#         )
+#         text_inputs = tokenizer(
+#             text, return_tensors="pt", padding=True, truncation=True
+#         )
 
-
-def collate_fn(batch):
-    if "audio_emb" in batch[0]:
-        audio = torch.stack([item["audio_emb"] for item in batch])
-        text = torch.stack([item["text_emb"] for item in batch])
-        labels = torch.stack([item["label"] for item in batch])
-        return audio, text, labels, None
-    else:
-        processor = Wav2Vec2FeatureExtractor.from_pretrained(
-            "facebook/hubert-base-ls960"
-        )
-        tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
-
-        audio = [item["audio_array"] for item in batch]
-        text = [item["text"] for item in batch]
-        labels = torch.tensor([item["label"] for item in batch])
-
-        audio_inputs = processor(
-            audio, return_tensors="pt", padding=True, sampling_rate=16000
-        )
-        text_inputs = tokenizer(
-            text, return_tensors="pt", padding=True, truncation=True
-        )
-
-        return (
-            audio_inputs.input_values,
-            text_inputs.input_ids,
-            labels,
-            text_inputs.attention_mask,
-        )
+#         return (
+#             audio_inputs.input_values,
+#             text_inputs.input_ids,
+#             labels,
+#             text_inputs.attention_mask,
+#         )
 
 
 def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
     model.train()
     total_loss, total_correct, total_samples = 0, 0, 0
 
-    for a, t, l, mask in loader:
+    for batch in loader:
+        a = batch["audio_inputs"].input_values
+        t = batch["text_inputs"].input_ids
+        l = batch["labels"]
+
         a, t, l = a.to(device), t.to(device), l.to(device)
-        mask = mask.to(device) if mask is not None else None
+        # mask = mask.to(device) if mask is not None else None
 
         optimizer.zero_grad()
-        logits = model(a, t, mask) if not precomputed else model(a, t, None)
+        logits = model(a, t, None)
         loss = loss_fn(logits, l)
         loss.backward()
         optimizer.step()
@@ -105,10 +127,14 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
     model.eval()
     total_loss, total_correct, total_samples = 0, 0, 0
     with torch.no_grad():
-        for a, t, l, mask in loader:
+        for batch in loader:
+            a = batch["audio_inputs"].input_values
+            t = batch["text_inputs"].input_ids
+            l = batch["labels"]
+
             a, t, l = a.to(device), t.to(device), l.to(device)
-            mask = mask.to(device) if mask is not None else None
-            logits = model(a, t, mask) if not precomputed else model(a, t, None)
+            # mask = mask.to(device) if mask is not None else None
+            logits = model(a, t, None)
             loss = loss_fn(logits, l)
             total_loss += loss.item()
             total_correct += (logits.argmax(dim=1) == l).sum().item()
@@ -118,40 +144,27 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
 
 
 def train_test(args):
-    from datasets import load_from_disk
+    processor = Wav2Vec2FeatureExtractor.from_pretrained("facebook/hubert-base-ls960")
+    tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 
-    raw_dataset = load_from_disk("iemocap")
-
-    train_ds = IEMOCAPDataset(raw_dataset["train"], args.precomputed)
-    # test_ds = IEMOCAPDataset(raw_dataset["test"], args.precomputed)
-
-    # Split the dataset into train and test sets
-    test_size = int(0.2 * len(train_ds))
-    train_size = len(train_ds) - test_size
-    train_ds, test_ds = torch.utils.data.random_split(
-        train_ds, [train_size, test_size], generator=torch.Generator().manual_seed(42)
+    trainloader, valloader, testloader = get_iemocap_data_loaders(
+        path="./iemocap",
+        precomputed=False,
+        batch_size=16,
+        num_workers=0,
+        collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
     )
-    print(f"Train size: {len(train_ds)}, Test size: {len(test_ds)}")
 
-    trainloader = DataLoader(
-        train_ds,
-        batch_size=args.batch_size,
-        collate_fn=collate_fn,
-        shuffle=True,
-        num_workers=4,
-    )
-    testloader = DataLoader(
-        test_ds,
-        batch_size=args.batch_size,
-        collate_fn=collate_fn,
-        shuffle=False,
-        num_workers=4,
-    )
+    emotion_labels = ["angry", "frustrated", "happy", "sad", "neutral"]
+
+    num_classes = len(emotion_labels)
 
     model = ATmodel(
-        num_classes=args.num_classes, num_latents=args.num_latent, dim=args.adapter_dim
+        num_classes=num_classes, num_latents=args.num_latent, dim=args.adapter_dim
     )
+
     model.to(args.device)
+
     print(
         "\t Model Loaded | Trainable Params:",
         sum(p.numel() for p in model.parameters() if p.requires_grad),
@@ -159,6 +172,7 @@ def train_test(args):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
+    early_stopper = EarlyStopping(patience=5, checkpoint_path="best_model.pth")
 
     best_acc = 0
     for epoch in range(args.num_epochs):
@@ -166,15 +180,28 @@ def train_test(args):
             trainloader, model, optimizer, loss_fn, args.device, args.precomputed
         )
         val_loss, val_acc = val_one_epoch(
-            testloader, model, loss_fn, args.device, args.precomputed
+            valloader, model, loss_fn, args.device, args.precomputed
         )
 
         print(
             f"Epoch {epoch + 1}: Train Loss {train_loss:.4f}, Train Acc {train_acc:.2f}%, Val Loss {val_loss:.4f}, Val Acc {val_acc:.2f}%"
         )
+
+        early_stopper(val_acc, model)
+        if early_stopper.early_stop:
+            print("Early stopping triggered. Stopping training.")
+            break
+
         best_acc = max(best_acc, val_acc)
 
     print("\nBest Validation Accuracy:", round(best_acc, 2), "%")
+
+    # Load best model for evaluation
+    model.load_state_dict(torch.load("best_model.pth"))
+    final_test_loss, final_test_acc = val_one_epoch(
+        testloader, model, loss_fn, args.device, args.precomputed
+    )
+    print(f"Final Test Accuracy (Best Model): {final_test_acc:.2f}%")
 
 
 if __name__ == "__main__":
