@@ -12,14 +12,14 @@ class Trainer:
     self.device = device
   
   def step(self, batch):
-    if 'text_inputs' in batch and 'audio_inputs' in batch:
+    if 'text_inputs' in batch and 'audio_inputs' in batch: # raw
       text_inputs = {
         k: (v.to(self.device).bool() if k == 'attention_mask' else v.to(self.device))
         for k, v in batch['text_inputs'].items()
       }
       audio_inputs = {k: v.to(self.device) for k, v in batch['audio_inputs'].items()}
       logits = self.model(text_inputs, audio_inputs)
-    else:
+    else: # precomputed - 'audio_emb' and 'text_emb'
       inputs = {k: v.to(self.device) for k, v in batch.items() if k != 'label'}
       logits = self.model(**inputs)
     

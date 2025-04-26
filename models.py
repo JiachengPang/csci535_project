@@ -20,6 +20,21 @@ class Classifier(nn.Module):
   def forward(self, x):
     return self.model(x)
 
+class FeatureExtractor(nn.Module):
+  def __init__(self, input_size, hidden_size, dropout=0.1):
+    super().__init__()
+    self.feature_extractor = nn.Sequential(
+      nn.Linear(input_size, hidden_size),
+      nn.Dropout(dropout),
+      nn.ReLU(),
+      nn.Linear(hidden_size, hidden_size),
+      nn.Dropout(dropout),
+      nn.ReLU(),
+    )
+  
+  def forward(self, x):
+    return self.feature_extractor(x)
+  
 
 class NormEncoder(nn.Module):
   def __init__(self, hidden_size):
@@ -61,7 +76,7 @@ class NormExchange(nn.Module):
 
 
 class XNormModel(nn.Module):
-  def __init__(self, roberta: RobertaModel, hubert: HubertModel, num_classes, hidden_size=768, exchange_layers=[6, 11], weight=0.5):
+  def __init__(self, roberta: RobertaModel, hubert: HubertModel, num_classes, hidden_size=768, exchange_layers=[0, 6, 11], weight=0.5):
     super().__init__()
     self.text_enc = roberta
     self.audio_enc = hubert
@@ -81,15 +96,18 @@ class XNormModel(nn.Module):
     self.text_classifier = Classifier(input_size=hidden_size, hidden_size=hidden_size, num_classes=num_classes)
     self.audio_classifier = Classifier(input_size=hidden_size, hidden_size=hidden_size, num_classes=num_classes)
 
-  def forward(self, text_inputs, audio_inputs):
+  def forward(self, text_inputs, audio_inputs, return_features=False):
+    attn_mask = text_inputs['attention_mask'].to(dtype=torch.float)  # (B, L)
+    attn_mask = attn_mask.unsqueeze(1).unsqueeze(2)  # (B, 1, 1, L)
+    attn_mask = (1.0 - attn_mask) * -10000.0  # 0 for keep, -10000 for mask  # (B, 1, L, L)
+
     t_hidden = self.text_emb(input_ids=text_inputs['input_ids'])
     a_hidden = self.audio_feature_extractor(audio_inputs['input_values'])
     a_hidden = a_hidden.transpose(1, 2) # (B, D, T) -> (B, T, D)
     a_hidden = self.audio_feature_projection(a_hidden)
 
     for i in range(len(self.text_layers)):
-
-      t_hidden = self.text_layers[i](t_hidden)[0]
+      t_hidden = self.text_layers[i](t_hidden, attention_mask=attn_mask)[0]
       a_hidden = self.audio_layers[i](a_hidden)[0]
 
       if i in self.exchange_layers:
@@ -102,32 +120,52 @@ class XNormModel(nn.Module):
 
     t_pooled = t_hidden[:, 0, :]
     a_pooled, _ = a_hidden.max(dim=1)
+    
+    if return_features:
+      features = torch.cat([t_pooled, a_pooled], dim=1)
+      return features
+    else:
+      t_logits = self.text_classifier(t_pooled)
+      a_logits = self.audio_classifier(a_pooled)
+      logits = self.weight * t_logits + (1 - self.weight) * a_logits
+      return logits
 
-    t_logits = self.text_classifier(t_pooled)
-    a_logits = self.audio_classifier(a_pooled)
-
-    logits = self.weight * t_logits + (1 - self.weight) * a_logits
-    return logits
 
 class EarlyFusionModel(nn.Module):
   def __init__(self, text_input_size=768, audio_input_size=768, hidden_size=512, num_classes=5, dropout=0.1):
     super().__init__()
-    self.classifier = Classifier(text_input_size + audio_input_size, hidden_size, num_classes, dropout)
+    self.feature_extractor = FeatureExtractor(text_input_size + audio_input_size, hidden_size)
+    self.classifier = Classifier(hidden_size, hidden_size, num_classes, dropout)
 
-  def forward(self, audio_emb, text_emb):
-    features = torch.cat((audio_emb, text_emb), dim=1)
-    out = self.classifier(features)
-    return out
+  def forward(self, audio_emb, text_emb, return_features=False):
+    features = torch.cat((text_emb, audio_emb), dim=1)
+    features = self.feature_extractor(features)
+
+    if return_features:
+      return features
+    else:
+      logits = self.classifier(features)
+    return logits
+
 
 class LateFusionModel(nn.Module):
   def __init__(self, text_input_size=768, audio_input_size=768, hidden_size=512, num_classes=5, dropout=0.1):
     super().__init__()
+    self.text_feature_extractor = FeatureExtractor(text_input_size, hidden_size)
+    self.audio_feature_extractor = FeatureExtractor(audio_input_size, hidden_size)
+
     self.text_classifier = Classifier(text_input_size, hidden_size, num_classes, dropout)
     self.audio_classifier = Classifier(audio_input_size, hidden_size, num_classes, dropout)
   
-  def forward(self, audio_emb, text_emb):
-    audio_logits = self.audio_classifier(audio_emb)
-    text_logits = self.text_classifier(text_emb)
-
-    final_logits = (audio_logits.float() + text_logits.float()) / 2.0
-    return final_logits
+  def forward(self, audio_emb, text_emb, return_features=False):
+    text_features = self.text_feature_extractor(text_emb)
+    audio_features = self.audio_feature_extractor(audio_emb)
+    
+    if return_features:
+      fused = (text_features + audio_features) / 2.0
+      return fused
+    else:
+      text_logits = self.text_classifier(text_emb)
+      audio_logits = self.audio_classifier(audio_emb)
+      final_logits = (audio_logits + text_logits) / 2.0
+      return final_logits

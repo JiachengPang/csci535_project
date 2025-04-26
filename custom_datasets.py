@@ -20,10 +20,10 @@ class IEMOCAPDataset(Dataset):
       text_emb = torch.tensor(d['text_embedding'], dtype=torch.float) # (768,)
       label = torch.tensor(self.label_to_idx[d['major_emotion']], dtype=torch.long)
 
-      return {'audio_emb': audio_emb, 'text_emb': text_emb, 'label': label}
+      return {'text_emb': text_emb, 'audio_emb': audio_emb, 'label': label}
     else:
       audio_array = d['audio']['array']
       text = d['transcription']
       label = self.label_to_idx[d['major_emotion']]
       
-      return {'audio_array': audio_array, 'text': text, 'label': label}
+      return {'text': text, 'audio_array': audio_array, 'label': label}

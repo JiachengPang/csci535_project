@@ -48,7 +48,7 @@ def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
   audios = [item['audio_array'] for item in batch]
   labels = [item['label'] for item in batch]
 
-  text_inputs = text_tokenizer(texts, padding=True, truncation=True, return_tensors='pt') # keys: 'input_ids', 'attention_mask'
+  text_inputs = text_tokenizer(texts, padding=True, truncation=True, return_tensors='pt', return_attention_mask=True) # keys: 'input_ids', 'attention_mask'
   audio_inputs = audio_processor(audios, sampling_rate=sampling_rate, padding=True, return_tensors='pt') # keys: 'input_values'
   labels = torch.tensor(labels, dtype=torch.long)
 
