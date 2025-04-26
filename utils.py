@@ -1,10 +1,50 @@
 import torch
 from datasets import load_from_disk
 from torch.utils.data import DataLoader
-from custom_datasets import IEMOCAPDataset
+from custom_datasets import IEMOCAPDataset, IEMOCAPCaptionDataset
 import json
 import os
 from collections import Counter
+import pandas as pd
+
+def get_iemocap_caption_data_loaders(ds_path, caption_path='gpt4o_audio_responses.csv', precomputed=False, collate_fn=None, batch_size=16, num_workers=0, seed=42, first_n=0):
+  ds = load_from_disk(ds_path)['train']
+  caption_df = pd.read_csv(caption_path)
+  caption_mapping = dict(zip(caption_df['id'], caption_df['response']))
+
+  def merge_excited(example):
+    if example['major_emotion'] == 'excited':
+      example['major_emotion'] = 'happy'
+    return example
+  ds = ds.map(merge_excited) 
+  
+  target_labels = ['angry', 'frustrated', 'happy', 'sad', 'neutral']
+  ds = ds.filter(lambda d: d['major_emotion'] in target_labels)
+
+  # allow smaller ds
+  if first_n > 0:
+    ds = ds.select(range(min(first_n, len(ds))))
+
+  label_counts = Counter(ds['major_emotion'])
+  print("Distribution after filtering:")
+  for label, count in label_counts.items():
+    print(f"{label}: {count}")
+  
+  ds = ds.train_test_split(test_size=0.2, seed=seed)
+  test_val = ds['test'].train_test_split(test_size=0.5, seed=seed)
+
+  train_ds = IEMOCAPCaptionDataset(ds['train'], caption_mapping, precomputed=precomputed)
+  val_ds = IEMOCAPCaptionDataset(test_val['train'], caption_mapping, precomputed=precomputed)
+  test_ds = IEMOCAPCaptionDataset(test_val['test'], caption_mapping, precomputed=precomputed)
+
+  print(f'train, val, test sizes: {len(train_ds)}, {len(val_ds)}, {len(test_ds)}')
+
+  train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, collate_fn=collate_fn)
+  val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
+  test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
+
+  return train_loader, val_loader, test_loader
+
 
 def get_iemocap_data_loaders(path, precomputed, batch_size=16, num_workers=0, seed=42, collate_fn=None, first_n=0):
   ds = load_from_disk(path)['train']
@@ -42,6 +82,65 @@ def get_iemocap_data_loaders(path, precomputed, batch_size=16, num_workers=0, se
   test_loader = DataLoader(test_ds, batch_size=batch_size, num_workers=num_workers, shuffle=True, collate_fn=collate_fn)
 
   return train_loader, val_loader, test_loader
+
+def collate_fn_caption_precomputed(batch, caption_tokenizer):
+  text_embs = torch.stack([item['text_emb'] for item in batch], dim=0)  # (B, 768)
+  audio_embs = torch.stack([item['audio_emb'] for item in batch], dim=0)  # (B, 768)
+
+  captions = [item['caption'] for item in batch]
+  labels = caption_tokenizer(
+    captions,
+    padding=True,
+    truncation=True,
+    max_length=128,
+    return_tensors='pt'
+  ).input_ids  # (B, L)
+
+  labels[labels == caption_tokenizer.pad_token_id] = -100  # ignore PAD tokens for loss
+
+  return {
+    'text_embs': text_embs,   # (B, 768)
+    'audio_embs': audio_embs, # (B, 768)
+    'labels': labels          # (B, L)
+  }
+
+def collate_fn_caption(batch, text_tokenizer, audio_processor, caption_tokenizer, sampling_rate=16000):
+
+  texts = [item['text'] for item in batch]
+  audios = [item['audio_array'] for item in batch]
+  captions = [item['caption'] for item in batch]
+
+  text_inputs = text_tokenizer(
+    texts,
+    padding=True,
+    truncation=True,
+    return_tensors='pt',
+    return_attention_mask=True
+  )  # 'input_ids', 'attention_mask'
+
+  audio_inputs = audio_processor(
+    audios,
+    sampling_rate=sampling_rate,
+    padding=True,
+    return_tensors='pt'
+  )  # 'input_values'
+
+  labels = caption_tokenizer(
+    captions,
+    padding=True,
+    truncation=True,
+    max_length=128,
+    return_tensors='pt'
+  ).input_ids
+
+  labels[labels == caption_tokenizer.pad_token_id] = -100
+
+  return {
+      'text_inputs': text_inputs,
+      'audio_inputs': audio_inputs,
+      'labels': labels
+  }
+
 
 def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
   texts = [item['text'] for item in batch]

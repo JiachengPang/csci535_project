@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from transformers import LlamaForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 class ProjectionLayer(nn.Module):
   def __init__(self, encoder_dim, llama_dim, prefix_len=10):
@@ -16,25 +16,23 @@ class ProjectionLayer(nn.Module):
     x = self.projection(encoding)
     x = x.view(x.size(0), self.prefix_len, -1)
 
-class MultimodalLLamaDecoder(nn.Module):
-  def __init__(self, llama_name='huggyllama/llama-7b', encoder_dim=1536, llama_dim=4096, prefix_len=10):
+    return x
+
+class MultimodalDecoder(nn.Module):
+  def __init__(self, llama_name='TinyLlama/TinyLlama-1.1B-Chat-v1.0'):
     super().__init__()
-    self.llama = LlamaForCausalLM.from_pretrained(llama_name)
+    self.llama = AutoModelForCausalLM.from_pretrained(llama_name)
     self.tokenizer = AutoTokenizer.from_pretrained(llama_name)
 
-    self.projection = ProjectionLayer(encoder_dim, llama_dim, prefix_len)
-
-  def forward(self, features, input_ids=None, attention_mask=None, labels=None):
-    batch_size = features.size(0)
-    prefix_emb = self.projection(features)
-    token_emb = self.llama.embed_tokens(input_ids)
+  def forward(self, prefix_emb, input_ids=None, attention_mask=None, labels=None):
+    token_emb = self.llama.model.embed_tokens(input_ids)
     full_embeddings = torch.cat([prefix_emb, token_emb], dim=1)
 
+    batch_size = prefix_emb.size(0)
     if attention_mask is not None:
-      prefix_attention = torch.ones((batch_size, self.projection.prefix_len), dtype=attention_mask.dtype, device=attention_mask.device)
+      prefix_attention = torch.ones((batch_size, prefix_emb.size(1)), dtype=attention_mask.dtype, device=attention_mask.device)
       attention_mask = torch.cat([prefix_attention, attention_mask], dim=1)
 
-    # Feed into LLaMA
     outputs = self.llama(
       inputs_embeds=full_embeddings,
       attention_mask=attention_mask,
@@ -44,27 +42,27 @@ class MultimodalLLamaDecoder(nn.Module):
 
     return outputs
   
-  def generate(self, features, max_new_tokens=50):
-    batch_size = features.size(0)
-    prefix_emb = self.projection(features)
+  def generate(self, prefix_emb, max_new_tokens=20):
+    batch_size = prefix_emb.size(0)
 
     start_tokens = torch.full(
         (batch_size, 1),
         self.tokenizer.bos_token_id,
         dtype=torch.long,
-        device=features.device,
+        device=prefix_emb.device,
     )
 
     # get BOS and append after prefix
     start_emb = self.llama.model.embed_tokens(start_tokens)
     full_embeddings = torch.cat([prefix_emb, start_emb], dim=1)
-    attention_mask = torch.ones(full_embeddings.size()[:2], device=features.device)
+    attention_mask = torch.ones(full_embeddings.size()[:2], device=prefix_emb.device)
 
     outputs = self.llama.generate(
         inputs_embeds=full_embeddings,
         attention_mask=attention_mask,
         max_new_tokens=max_new_tokens,
         eos_token_id=self.tokenizer.eos_token_id,
+        pad_token_id=self.tokenizer.pad_token_id,
     )
 
     return outputs
