@@ -53,8 +53,8 @@ def parse_options():
     parser = argparse.ArgumentParser(description="Audio‑Text AdaptFormer DDP Training")
     parser.add_argument("--lr", type=float, default=3e-4, help="initial learning rate")
     parser.add_argument("--batch_size", type=int, default=8, help="per‑GPU batch size")
-    parser.add_argument("--num_epochs", type=int, default=15, help="training epochs")
-    parser.add_argument("--seed", type=int, default=1111, help="random seed")
+    parser.add_argument("--num_epochs", type=int, default=50, help="training epochs")
+    parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--adapter_dim", type=int, default=8, help="adapter dimension")
     parser.add_argument("--num_latent", type=int, default=4, help="latent tokens")
     parser.add_argument(
@@ -264,7 +264,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=opts.lr)
     loss_fn = nn.CrossEntropyLoss().to(opts.device)
     early_stopper = EarlyStopping(
-        patience=5, checkpoint_path="best_model.pth", verbose=(rank == 0)
+        patience=10, checkpoint_path="best_model.pth", verbose=(rank == 0)
     )
 
     best_acc = 0.0

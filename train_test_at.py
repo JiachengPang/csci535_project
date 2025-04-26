@@ -49,9 +49,9 @@ def parse_options():
     parser.add_argument("--lr", type=float, default=3e-4, help="initial learning rate")
     parser.add_argument("--batch_size", type=int, default=8, help="batchsize")
     parser.add_argument(
-        "--num_epochs", type=int, default=15, help="total training epochs"
+        "--num_epochs", type=int, default=50, help="total training epochs"
     )
-    parser.add_argument("--seed", type=int, default=1111, help="random seed")
+    parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument(
         "--adapter_dim", type=int, default=8, help="dimension of the adapter"
     )
@@ -150,7 +150,7 @@ def train_test(args):
     trainloader, valloader, testloader = get_iemocap_data_loaders(
         path="./iemocap",
         precomputed=False,
-        batch_size=16,
+        batch_size=args.batch_size,
         num_workers=0,
         collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
     )
@@ -172,7 +172,7 @@ def train_test(args):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
-    early_stopper = EarlyStopping(patience=5, checkpoint_path="best_model.pth")
+    early_stopper = EarlyStopping(patience=10, checkpoint_path="best_model.pth")
 
     best_acc = 0
     for epoch in range(args.num_epochs):
