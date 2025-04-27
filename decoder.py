@@ -48,17 +48,8 @@ class MultimodalDecoder(nn.Module):
 
         return outputs
 
-<<<<<<< HEAD
-    start_tokens = torch.full(
-      (batch_size, 1),
-      self.tokenizer.bos_token_id,
-      dtype=torch.long,
-      device=prefix_emb.device,
-    )
-=======
     def generate(self, prefix_emb, max_new_tokens=20):
         batch_size = prefix_emb.size(0)
->>>>>>> bf912a68599c065056159cb6dfe356edf67295dd
 
         start_tokens = torch.full(
             (batch_size, 1),
@@ -67,22 +58,6 @@ class MultimodalDecoder(nn.Module):
             device=prefix_emb.device,
         )
 
-<<<<<<< HEAD
-    outputs = self.llama.generate(
-      inputs_embeds=full_embeddings,
-      attention_mask=attention_mask,
-      max_new_tokens=max_new_tokens,
-      eos_token_id=self.tokenizer.eos_token_id,
-      pad_token_id=self.tokenizer.pad_token_id,
-    )
-
-    return outputs
-  
-if __name__ == '__main__':
-  llama_name='TinyLlama/TinyLlama-1.1B-Chat-v1.0'
-  llama = AutoModelForCausalLM.from_pretrained(llama_name)
-  print(llama)
-=======
         # get BOS and append after prefix
         start_emb = self.llama.model.embed_tokens(start_tokens)
         full_embeddings = torch.cat([prefix_emb, start_emb], dim=1)
@@ -99,4 +74,3 @@ if __name__ == '__main__':
         )
 
         return outputs
->>>>>>> bf912a68599c065056159cb6dfe356edf67295dd

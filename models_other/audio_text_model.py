@@ -19,19 +19,6 @@ class ATmodel(nn.Module):
         self.audio_hidden_size = self.audio_encoder.config.hidden_size  # 768
         self.text_hidden_size = self.text_encoder.config.hidden_size  # 768
 
-        # class DummyBlock:
-        #     def __init__(self, norm1, attn, norm2, mlp):
-        #         self.norm1 = norm1
-        #         self.attn = attn
-        #         self.norm2 = norm2
-        #         self.mlp = mlp
-
-        # dummy_layer = DummyBlock(
-        #     norm1=nn.LayerNorm(768),
-        #     attn=nn.MultiheadAttention(768, 12, batch_first=True),
-        #     norm2=nn.LayerNorm(768),
-        #     mlp=nn.Sequential(nn.Linear(768, 3072), nn.GELU(), nn.Linear(3072, 768)),
-        # )
 
         self.audio_text_blocks = nn.Sequential(
             *[
@@ -80,9 +67,10 @@ class ATmodel(nn.Module):
         return fused
 
     def forward(self, audio_input, text_input, text_mask):
-        audio_tokens = self.forward_audio_features(audio_input)
-        text_tokens = self.forward_text_features(text_input, text_mask)
-        fused = self.forward_encoder(audio_tokens, text_tokens)
+        with torch.no_grad():
+            audio_tokens = self.forward_audio_features(audio_input)
+            text_tokens = self.forward_text_features(text_input, text_mask)
+            fused = self.forward_encoder(audio_tokens, text_tokens)
         logits = self.classifier(fused)
         return logits
 
