@@ -7,7 +7,12 @@ from transformers import RobertaTokenizer, Wav2Vec2FeatureExtractor
 from models_other.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
 
-from utils import get_iemocap_data_loaders, collate_fn_raw
+from utils import get_iemocap_data_loaders, collate_fn_raw, MetricsLogger
+
+from sklearn.metrics import f1_score
+
+
+MODEL = "at_mbt"
 
 
 class EarlyStopping:
@@ -15,7 +20,7 @@ class EarlyStopping:
         self,
         patience=5,
         min_delta=0.001,
-        checkpoint_path="best_model.pth",
+        checkpoint_path=f"{MODEL}_best_model.pth",
         verbose=True,
     ):
         self.patience = patience
@@ -101,6 +106,8 @@ def parse_options():
 def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
     model.train()
     total_loss, total_correct, total_samples = 0, 0, 0
+    pred = []
+    true = []
 
     for batch in loader:
         a = batch["audio_inputs"].input_values
@@ -119,13 +126,21 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
         total_loss += loss.item()
         total_correct += (logits.argmax(dim=1) == l).sum().item()
         total_samples += l.size(0)
+        pred.extend(logits.argmax(dim=1).cpu().numpy())
+        true.extend(l.cpu().numpy())
 
-    return total_loss / len(loader), (total_correct / total_samples) * 100
+    pred = np.array(pred)
+    true = np.array(true)
+    f1 = f1_score(true, pred, average="macro")
+
+    return total_loss / len(loader), (total_correct / total_samples) * 100, f1
 
 
 def val_one_epoch(loader, model, loss_fn, device, precomputed):
     model.eval()
     total_loss, total_correct, total_samples = 0, 0, 0
+    pred = []
+    true = []
     with torch.no_grad():
         for batch in loader:
             a = batch["audio_inputs"].input_values
@@ -139,8 +154,14 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
             total_loss += loss.item()
             total_correct += (logits.argmax(dim=1) == l).sum().item()
             total_samples += l.size(0)
+            pred.extend(logits.argmax(dim=1).cpu().numpy())
+            true.extend(l.cpu().numpy())
 
-    return total_loss / len(loader), (total_correct / total_samples) * 100
+    pred = np.array(pred)
+    true = np.array(true)
+    f1 = f1_score(true, pred, average="macro")
+
+    return total_loss / len(loader), (total_correct / total_samples) * 100, f1
 
 
 def train_test(args):
@@ -172,16 +193,24 @@ def train_test(args):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
-    early_stopper = EarlyStopping(patience=10, checkpoint_path="best_model.pth")
+    early_stopper = EarlyStopping(
+        patience=10, checkpoint_path=f"{MODEL}_best_model.pth"
+    )
+
+    logger = MetricsLogger(save_path=f"./results/{MODEL}_training_metrics.json")
 
     best_acc = 0
     for epoch in range(args.num_epochs):
-        train_loss, train_acc = train_one_epoch(
+        train_loss, train_acc, train_f1 = train_one_epoch(
             trainloader, model, optimizer, loss_fn, args.device, args.precomputed
         )
-        val_loss, val_acc = val_one_epoch(
+        val_loss, val_acc, val_f1 = val_one_epoch(
             valloader, model, loss_fn, args.device, args.precomputed
         )
+
+        logger.log_train(train_loss, train_acc, train_f1)
+        logger.log_val(val_loss, val_acc, val_f1)
+        logger.save()
 
         print(
             f"Epoch {epoch + 1}: Train Loss {train_loss:.4f}, Train Acc {train_acc:.2f}%, Val Loss {val_loss:.4f}, Val Acc {val_acc:.2f}%"
@@ -197,10 +226,14 @@ def train_test(args):
     print("\nBest Validation Accuracy:", round(best_acc, 2), "%")
 
     # Load best model for evaluation
-    model.load_state_dict(torch.load("best_model.pth"))
-    final_test_loss, final_test_acc = val_one_epoch(
+    model.load_state_dict(torch.load(f"{MODEL}_best_model.pth"))
+    final_test_loss, final_test_acc, final_test_f1 = val_one_epoch(
         testloader, model, loss_fn, args.device, args.precomputed
     )
+
+    logger.log_test(final_test_loss, final_test_acc, final_test_f1)
+    logger.save()
+
     print(f"Final Test Accuracy (Best Model): {final_test_acc:.2f}%")
 
 
