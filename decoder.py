@@ -25,26 +25,14 @@ class MultimodalDecoder(nn.Module):
     self.tokenizer = AutoTokenizer.from_pretrained(llama_name)
 
   def forward(self, prefix_emb, input_ids=None, attention_mask=None, labels=None):
-    print(f'forward - prefix_emb {prefix_emb.shape}')
     token_emb = self.llama.model.embed_tokens(input_ids) # (B, prompt_len + caption_len, llama_dim)
-    print(f'forward - token_emb {token_emb.shape}')
     full_embeddings = torch.cat([prefix_emb, token_emb], dim=1) # (B, prefix_len + prompt_len + caption_len, llama_dim)
-    print(f'forward - full_embeddings {full_embeddings.shape}')
-
-    # batch_size = prefix_emb.size(0)
-    # if attention_mask is not None:
-    #   prefix_attention = torch.ones((batch_size, prefix_emb.size(1)), dtype=attention_mask.dtype, device=attention_mask.device)
-    #   attention_mask = torch.cat([prefix_attention, attention_mask], dim=1) # (B, prefix_len + prompt_len + caption_len)
-    
-    print(f'forward - attention_mask {attention_mask.shape}')
-    print(f'forward - labels {labels.shape}')
     outputs = self.llama(
       inputs_embeds=full_embeddings,
       attention_mask=attention_mask,
       labels=labels,
       return_dict=True,
     )
-    print(f'forward - outputs {outputs.shape}')
 
     return outputs
   

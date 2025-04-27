@@ -74,6 +74,7 @@ class CaptioningTrainer:
     self.encoder = encoder.to(device)
     self.projector = projector.to(device)
     self.decoder = decoder.to(device)
+    self.decoder_tokenizer = decoder_tokenizer
     self.optimizer = optimizer
     self.scheduler = scheduler
     self.device = device
@@ -114,7 +115,9 @@ class CaptioningTrainer:
     prompt_attention_mask = prompt_attention_mask.expand(batch_size, -1)  # (B, prompt_len)
 
     # total input
-    input_ids = torch.cat([prompt_input_ids, caption_labels.clone()], dim=1)
+    caption_input_ids = caption_labels.clone()
+    caption_input_ids[caption_input_ids == -100] = self.decoder_tokenizer.pad_token_id
+    input_ids = torch.cat([prompt_input_ids, caption_input_ids], dim=1)
 
     caption_attention_mask = (caption_labels != -100).long()
     attention_mask = torch.cat([prompt_attention_mask, caption_attention_mask], dim=1)
