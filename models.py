@@ -122,7 +122,7 @@ class XNormModel(nn.Module):
     a_pooled, _ = a_hidden.max(dim=1)
     
     if return_features:
-      features = torch.cat([t_pooled, a_pooled], dim=1)
+      features = torch.cat([t_pooled, a_pooled], dim=1) # D = 1536
       return features
     else:
       t_logits = self.text_classifier(t_pooled)
@@ -142,7 +142,7 @@ class EarlyFusionModel(nn.Module):
     features = self.feature_extractor(features)
 
     if return_features:
-      return features
+      return features # D = 512
     else:
       logits = self.classifier(features)
     return logits
@@ -162,7 +162,7 @@ class LateFusionModel(nn.Module):
     audio_features = self.audio_feature_extractor(audio_emb)
     
     if return_features:
-      fused = (text_features + audio_features) / 2.0
+      fused = (text_features + audio_features) / 2.0 # D = 512
       return fused
     else:
       text_logits = self.text_classifier(text_emb)

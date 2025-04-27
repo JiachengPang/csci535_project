@@ -110,7 +110,7 @@ class CaptioningTrainer:
     projected = self.projector(features)
     
     outputs = self.decoder(
-      features=projected,
+      prefix_emb=projected,
       input_ids=input_ids,
       attention_mask=attention_mask,
       labels=labels

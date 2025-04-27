@@ -6,13 +6,6 @@ from utils import get_iemocap_data_loaders, collate_fn_raw, MetricsLogger
 from trainer import Trainer
 import argparse
 
-def main_decoder(model_choice):
-  print(f'Decoder model to train {model_choice}')
-
-  # data
-  
-
-
 def main():
   device = 'cuda' if torch.cuda.is_available() else 'cpu'
   print(f'on device: {device}')
@@ -23,12 +16,7 @@ def main():
   # parse arg
   parser = argparse.ArgumentParser()
   parser.add_argument('--model', type=str, default='xnorm', choices=['xnorm', 'early', 'late'])
-  parser.add_argument('--decoder', type=str, default='', choices=['xnorm', 'early', 'late'])
   args = parser.parse_args()
-
-  if args.decoder != '':
-    main_decoder(args.decoder)
-    return
 
   model_choice = args.model
   print(f'Model to train: {model_choice}')
@@ -64,7 +52,7 @@ def main():
       batch_size=2, 
       num_workers=0,
       collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
-      )
+    )
   else: 
     train_loader, val_loader, test_loader = get_iemocap_data_loaders(
       path='./iemocap_precomputed',
