@@ -11,6 +11,11 @@ from transformers import RobertaTokenizer, Wav2Vec2FeatureExtractor
 from models_other.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
 
+from utils import MetricsLogger
+from sklearn.metrics import f1_score
+
+MODEL = "at_mbt"
+
 
 class EarlyStopping:
     """Early stops training if validation accuracy doesn't improve after a given patience."""
@@ -19,7 +24,7 @@ class EarlyStopping:
         self,
         patience: int = 5,
         min_delta: float = 0.001,
-        checkpoint_path: str = "best_model.pth",
+        checkpoint_path: str = f"{MODEL}_best_model.pth",
         verbose: bool = True,
     ) -> None:
         self.patience = patience
@@ -126,6 +131,9 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed, worl
     total_correct = torch.zeros(1, device=device)
     total_samples = torch.zeros(1, device=device)
 
+    pred = []
+    true = []
+
     for a, t, l, mask in loader:
         a, t, l = a.to(device), t.to(device), l.to(device)
         mask = mask.to(device) if mask is not None else None
@@ -140,6 +148,8 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed, worl
             total_loss += loss.detach()
             total_correct += (logits.argmax(dim=1) == l).float().sum()
             total_samples += l.size(0)
+        pred.extend(logits.argmax(dim=1).cpu().numpy())
+        true.extend(l.cpu().numpy())
 
     # Gather across all GPUs
     reduce_tensor(total_loss, world_size)
@@ -148,7 +158,10 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed, worl
 
     avg_loss = total_loss.item() / len(loader)
     avg_acc = (total_correct.item() / total_samples.item()) * 100
-    return avg_loss, avg_acc
+    pred = np.array(pred)
+    true = np.array(true)
+    f1 = f1_score(true, pred, average="macro")
+    return avg_loss, avg_acc, f1
 
 
 def val_one_epoch(loader, model, loss_fn, device, precomputed, world_size):
@@ -156,6 +169,10 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed, world_size):
     total_loss = torch.zeros(1, device=device)
     total_correct = torch.zeros(1, device=device)
     total_samples = torch.zeros(1, device=device)
+
+    pred = []
+    true = []
+
     with torch.no_grad():
         for a, t, l, mask in loader:
             a, t, l = a.to(device), t.to(device), l.to(device)
@@ -166,6 +183,8 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed, world_size):
             total_loss += loss
             total_correct += (logits.argmax(dim=1) == l).float().sum()
             total_samples += l.size(0)
+            pred.extend(logits.argmax(dim=1).cpu().numpy())
+            true.extend(l.cpu().numpy())
 
     reduce_tensor(total_loss, world_size)
     reduce_tensor(total_correct, world_size)
@@ -173,7 +192,12 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed, world_size):
 
     avg_loss = total_loss.item() / len(loader)
     avg_acc = (total_correct.item() / total_samples.item()) * 100
-    return avg_loss, avg_acc
+
+    pred = np.array(pred)
+    true = np.array(true)
+    f1 = f1_score(true, pred, average="macro")
+
+    return avg_loss, avg_acc, f1
 
 
 def main():
@@ -181,6 +205,8 @@ def main():
     world_size, rank = init_distributed(opts)
 
     from datasets import load_from_disk
+
+    logger = MetricsLogger(save_path=f"./results/{MODEL}_training_metrics.json")
 
     raw_dataset = load_from_disk("iemocap")
     # full_ds = IEMOCAPDataset(raw_dataset["train"], opts.precomputed)
@@ -264,13 +290,13 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=opts.lr)
     loss_fn = nn.CrossEntropyLoss().to(opts.device)
     early_stopper = EarlyStopping(
-        patience=10, checkpoint_path="best_model.pth", verbose=(rank == 0)
+        patience=10, checkpoint_path=f"{MODEL}_best_model.pth", verbose=(rank == 0)
     )
 
     best_acc = 0.0
     for epoch in range(opts.num_epochs):
         train_sampler.set_epoch(epoch)
-        train_loss, train_acc = train_one_epoch(
+        train_loss, train_acc, train_f1 = train_one_epoch(
             train_loader,
             model,
             optimizer,
@@ -279,9 +305,13 @@ def main():
             opts.precomputed,
             world_size,
         )
-        val_loss, val_acc = val_one_epoch(
+        val_loss, val_acc, val_f1 = val_one_epoch(
             val_loader, model, loss_fn, opts.device, opts.precomputed, world_size
         )
+
+        logger.log_train(train_loss, train_acc, train_f1)
+        logger.log_val(val_loss, val_acc, val_f1)
+        logger.save()
 
         if rank == 0:
             print(
@@ -304,9 +334,11 @@ def main():
         torch.load("best_model.pth", map_location=map_location)
     )
 
-    final_loss, final_acc = val_one_epoch(
+    final_loss, final_acc, final_f1 = val_one_epoch(
         test_loader, model, loss_fn, opts.device, opts.precomputed, world_size
     )
+    logger.log_test(final_loss, final_acc, final_f1)
+    logger.save()
     if rank == 0:
         print("\nBest Validation Accuracy: {:.2f}%".format(best_acc))
         print("Final Test Accuracy (Best Model): {:.2f}%".format(final_acc))
