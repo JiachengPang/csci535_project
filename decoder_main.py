@@ -146,10 +146,20 @@ def main():
   print(f"Training progress saved to 'decoder_training_progress.json'")
 
   # === Load best model after training ===
-  checkpoint = torch.load(best_model_path)
+  # checkpoint = torch.load(best_model_path)
+
+  # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+  checkpoint = torch.load(best_model_path, map_location='cpu')
+  projector.to('cpu')
+  decoder.to('cpu')
+
   projector.load_state_dict(checkpoint['projector_state_dict'])
   decoder.load_state_dict(checkpoint['decoder_state_dict'])
-  optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+  projector.to(device)
+  decoder.to(device)
+  torch.cuda.empty_cache()
 
   print(f"Best model loaded from {best_model_path} (Validation Loss: {best_val_loss:.4f})")
 
