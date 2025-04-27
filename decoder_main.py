@@ -67,6 +67,7 @@ def main():
       ds_path='./iemocap',
       precomputed=False,
       collate_fn=lambda batch: collate_fn_caption(batch, text_tokenizer=text_tokenizer, audio_processor=audio_processor, caption_tokenizer=caption_tokenizer),
+      batch_size=2,
       first_n=100
     )
   else:
@@ -74,6 +75,7 @@ def main():
       ds_path='./iemocap_precomputed',
       precomputed=True,
       collate_fn=lambda batch: collate_fn_caption_precomputed(batch, caption_tokenizer=caption_tokenizer),
+      batch_size=2,
       first_n=100
     )
 

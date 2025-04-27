@@ -99,16 +99,52 @@ class CaptioningTrainer:
       text_embs = batch['text_embs'].to(self.device)
       features = self.encoder(text_embs, audio_embs, return_features=True)
 
+    # labels: [-100 for prefix] + [-100 for prompt] + [caption]
+    # attention mask: [1s for prefix] + [1s for prompt] + [0s for caption]
+
+    batch_size = features.size(0)
+    # caption labels
+    caption_labels = batch['labels'].to(self.device) # (B, caption_len)
+
+    # prompt input
     prompt_input_ids = self.prompt_tokens.input_ids.to(self.device)         # (1, prompt_len)
     prompt_attention_mask = self.prompt_tokens.attention_mask.to(self.device)  # (1, prompt_len)
-    batch_size = features.size(0)
-    input_ids = prompt_input_ids.expand(batch_size, -1)          # (B, prompt_len)
-    attention_mask = prompt_attention_mask.expand(batch_size, -1)  # (B, prompt_len)
+    
+    prompt_input_ids = prompt_input_ids.expand(batch_size, -1)          # (B, prompt_len)
+    prompt_attention_mask = prompt_attention_mask.expand(batch_size, -1)  # (B, prompt_len)
 
-    labels = batch['labels'].to(self.device)
+    # total input
+    input_ids = torch.cat([prompt_input_ids, caption_labels.clone()], dim=1)
+
+    caption_attention_mask = (caption_labels != -100).long()
+    attention_mask = torch.cat([prompt_attention_mask, caption_attention_mask], dim=1)
+    
+    prompt_labels = torch.full(
+      (batch_size, prompt_input_ids.size(1)),
+      -100,
+      dtype=torch.long,
+      device=self.device
+    )
+    labels = torch.cat([prompt_labels, caption_labels], dim=1) # (B, prefix_len + caption_len)
 
     projected = self.projector(features)
-    
+
+    prefix_labels = torch.full(
+      (batch_size, projected.size(1)),  # (B, prefix_len)
+      -100,
+      dtype=torch.long,
+      device=self.device
+    )
+
+    labels = torch.cat([prefix_labels, labels], dim=1)
+
+    prefix_attention = torch.ones(
+      (batch_size, projected.size(1)),
+      dtype=attention_mask.dtype,
+      device=attention_mask.device
+    )
+    attention_mask = torch.cat([prefix_attention, attention_mask], dim=1)
+
     outputs = self.decoder(
       prefix_emb=projected,
       input_ids=input_ids,
