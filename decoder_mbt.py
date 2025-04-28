@@ -7,6 +7,7 @@ from transformers import (
     Wav2Vec2FeatureExtractor,
 )
 from models import XNormModel, EarlyFusionModel, LateFusionModel
+from models_other.audio_text_model import ATmodel
 from tqdm import tqdm, trange
 import argparse
 from decoder import ProjectionLayer, MultimodalDecoder
@@ -49,6 +50,13 @@ def load_encoder(model_choice, num_classes, from_pretrained=None):
         encoder = EarlyFusionModel(from_pretrained=from_pretrained)
     elif model_choice == "late":
         encoder = LateFusionModel(from_pretrained=from_pretrained)
+    elif model_choice == "mbt":
+        encoder = ATmodel(
+            num_classes=num_classes,
+            num_latents=4,
+            dim=8,
+            from_pretrained=from_pretrained,
+        )
 
     return encoder
 
@@ -60,7 +68,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model", type=str, default="xnorm", choices=["xnorm", "early", "late"]
+        "--model", type=str, default="xnorm", choices=["xnorm", "early", "late", "mbt"]
     )
     args = parser.parse_args()
     encoder_choice = args.model
@@ -73,6 +81,8 @@ def main():
 
     if encoder_choice == "xnorm":
         projector = ProjectionLayer(1536, 2048)
+    elif encoder_choice == "mbt":
+        projector = ProjectionLayer(768, 2048)
     else:
         projector = ProjectionLayer(512, 2048)
 
@@ -80,9 +90,9 @@ def main():
     caption_tokenizer = decoder.tokenizer
 
     # data
-    if encoder_choice == "xnorm":
-        text_tokenizer = RobertaTokenizer.from_pretrained(text_checkpoint)
-        audio_processor = Wav2Vec2FeatureExtractor.from_pretrained(audio_checkpoint)
+    if encoder_choice in ("xnorm", "mbt"):
+        text_tokenizer = RobertaTokenizer(text_checkpoint)
+        audio_processor = Wav2Vec2FeatureExtractor(audio_checkpoint)
 
         train_loader, val_loader, test_loader = get_iemocap_caption_data_loaders(
             ds_path="./iemocap",

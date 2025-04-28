@@ -71,26 +71,16 @@ class ATmodel(nn.Module):
         fused = 0.5 * (audio_cls + text_cls)
         return fused
 
-    def forward(self, audio_input, text_input, text_mask):
+    def forward(self, audio_input, text_input, text_mask, return_features=False):
         with torch.no_grad():
             audio_tokens = self.forward_audio_features(audio_input)
             text_tokens = self.forward_text_features(text_input, text_mask)
             fused = self.forward_encoder(audio_tokens, text_tokens)
+        if return_features:
+            return fused
         logits = self.classifier(fused)
         return logits
 
 
 if __name__ == "__main__":
-    # audio_encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
-    # print(audio_encoder.feature_extractor)
-    # print(audio_encoder.feature_projection)
-    # print(audio_encoder.encoder.pos_conv_embed)
-    # print(audio_encoder.encoder.layer_norm)
-    # print(audio_encoder.encoder.dropout)
-    # print(audio_encoder.encoder.layers)
-
-    # text_encoder = RobertaModel.from_pretrained("roberta-base")
-    # print(text_encoder.embeddings)
-    # print(text_encoder.encoder.layer)
-    # print(text_encoder.pooler)
     pass
