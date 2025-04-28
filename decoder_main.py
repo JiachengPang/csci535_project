@@ -81,8 +81,8 @@ def main():
 
     # data
     if encoder_choice == "xnorm":
-        text_tokenizer = RobertaTokenizer(text_checkpoint)
-        audio_processor = Wav2Vec2FeatureExtractor(audio_checkpoint)
+        text_tokenizer = RobertaTokenizer.from_pretrained(text_checkpoint)
+        audio_processor = Wav2Vec2FeatureExtractor.from_pretrained(audio_checkpoint)
 
         train_loader, val_loader, test_loader = get_iemocap_caption_data_loaders(
             ds_path="./iemocap",
