@@ -28,7 +28,7 @@ DEFAULT_PROMPT = "Describe the emotion expressed in this speech by focusing on b
 
 
 def load_encoder(model_choice, num_classes, from_pretrained=None):
-    print(f"Loading encoder: {model_choice}, from_pretrained {from_pretrained}")
+    print(f"Loading encoder: {model_choice}, from_pretrained: {from_pretrained}")
     if model_choice == "xnorm":
         roberta = RobertaModel.from_pretrained(text_checkpoint)
         hubert = HubertModel.from_pretrained(audio_checkpoint)
@@ -125,7 +125,7 @@ def main():
     best_val_loss = float("inf")
     counter = 0
 
-    best_model_path = f"{encoder_choice}_best_captioning_model.pth"
+    best_model_path = f"./results/{encoder_choice}_best_captioning_model.pth"
     training_progress = []
 
     epoch_bar = trange(1, num_epochs + 1, desc="Training Epochs")

@@ -1,13 +1,9 @@
 import torch
-from torch.optim import AdamW
 from transformers import (
-    RobertaModel,
     RobertaTokenizer,
-    HubertModel,
     Wav2Vec2FeatureExtractor,
 )
-from models import XNormModel, EarlyFusionModel, LateFusionModel
-from tqdm import tqdm, trange
+from tqdm import tqdm
 import argparse
 from decoder import ProjectionLayer, MultimodalDecoder
 from utils import (
@@ -15,7 +11,7 @@ from utils import (
     collate_fn_caption,
     collate_fn_caption_precomputed,
 )
-from trainer import CaptioningTrainer
+from decoder_main import load_encoder
 import json
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -26,26 +22,19 @@ caption_checkpoint = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
 DEFAULT_PROMPT = "Describe the emotion expressed in this speech by focusing on both the speaker's words and vocal characteristics. Your response:"
 
-
-def load_encoder(model_choice, num_classes):
-    print(f"Loading encoder: {model_choice}")
-    if model_choice == "xnorm":
-        roberta = RobertaModel.from_pretrained(text_checkpoint)
-        hubert = HubertModel.from_pretrained(audio_checkpoint)
-
-        # freeze roberta and hubert
-        for param in roberta.parameters():
-            param.requires_grad = False
-        for param in hubert.parameters():
-            param.requires_grad = False
-
-        encoder = XNormModel(roberta=roberta, hubert=hubert, num_classes=num_classes)
-    elif model_choice == "early":
-        encoder = EarlyFusionModel()
-    elif model_choice == "late":
-        encoder = LateFusionModel()
-
-    return encoder
+def load_projector_decoder(model_choice, from_pretrained=None):
+    print(f'Loading projector/decoder: model: {model_choice}, from_pretrained: {from_pretrained}')
+    encoder_dim = 1536 if model_choice == 'xnorm' else 512
+    
+    if from_pretrained:
+        pretrained = torch.load(from_pretrained, map_location='cpu')
+        projector = ProjectionLayer(encoder_dim, 2048, pretrained_weights=pretrained['projector_state_dict'])
+        decoder = MultimodalDecoder(pretrained_weights=pretrained['decoder_state_dict'])
+    else:
+        projector = ProjectionLayer(encoder_dim, 2048)
+        decoder = MultimodalDecoder()
+    
+    return projector, decoder
 
 
 def main():
@@ -60,16 +49,12 @@ def main():
     args = parser.parse_args()
     encoder_choice = args.model
 
-    # encoder
-    encoder = load_encoder(encoder_choice, len(emotion_labels))
-    projector = load_projector()
+    # full model
+    encoder_ckpt = f'./results/{encoder_choice}_checkpoint.pth'
+    decoder_ckpt = f'./results/{encoder_choice}_best_captioning_model.pth'
+    encoder = load_encoder(encoder_choice, len(emotion_labels), from_pretrained=encoder_ckpt)
+    projector, decoder = load_projector_decoder(encoder_choice, from_pretrained=decoder_ckpt)
 
-    if encoder_choice == "xnorm":
-        projector = ProjectionLayer(1536, 2048)
-    else:
-        projector = ProjectionLayer(512, 2048)
-
-    decoder = MultimodalDecoder()
     caption_tokenizer = decoder.tokenizer
 
     # data
@@ -77,7 +62,7 @@ def main():
         text_tokenizer = RobertaTokenizer(text_checkpoint)
         audio_processor = Wav2Vec2FeatureExtractor(audio_checkpoint)
 
-        train_loader, val_loader, test_loader = get_iemocap_caption_data_loaders(
+        _, _, test_loader = get_iemocap_caption_data_loaders(
             ds_path="./iemocap",
             precomputed=False,
             collate_fn=lambda batch: collate_fn_caption(
@@ -90,7 +75,7 @@ def main():
             first_n=100,
         )
     else:
-        train_loader, val_loader, test_loader = get_iemocap_caption_data_loaders(
+        _, _, test_loader = get_iemocap_caption_data_loaders(
             ds_path="./iemocap_precomputed",
             precomputed=True,
             collate_fn=lambda batch: collate_fn_caption_precomputed(
@@ -100,25 +85,82 @@ def main():
             first_n=100,
         )
 
-    best_model_path = f"{encoder_choice}_best_captioning_model.pth"
+    generation_outputs_path = f"./results/{encoder_choice}_test_generations.json"
 
-    # === Load best model after training ===
-    checkpoint = torch.load(best_model_path, map_location="cpu")
-    projector.to("cpu")
-    decoder.to("cpu")
-
-    projector.load_state_dict(checkpoint["projector_state_dict"])
-    decoder.load_state_dict(checkpoint["decoder_state_dict"])
-
+    encoder.to(device)
     projector.to(device)
     decoder.to(device)
-    torch.cuda.empty_cache()
 
-    print(f"Best model loaded from {best_model_path}")
+    encoder.eval()
+    projector.eval()
+    decoder.eval()
 
-    # test_loss = trainer.evaluate(test_loader)
+    generations = []
+    progress_bar = tqdm(test_loader, desc="Generating Captions")
 
-    # print(f"Final Test Loss: {test_loss:.4f}")
+    with torch.no_grad():
+        for batch in progress_bar:
+            # encode
+            if encoder_choice == "xnorm":
+                text_inputs = {
+                    "input_ids": batch["text_inputs"]["input_ids"].to(device),
+                    "attention_mask": batch["text_inputs"]["attention_mask"].to(device),
+                }
+                audio_inputs = {
+                    "input_values": batch["audio_inputs"]["input_values"].to(device),
+                }
+
+                features = encoder(text_inputs, audio_inputs, return_features=True)  # (B, 1536)
+
+            else:
+                text_embs = batch["text_embs"].to(device)  # (B, 768)
+                audio_embs = batch["audio_embs"].to(device)  # (B, 768)
+
+                features = encoder(audio_emb=audio_embs, text_emb=text_embs, return_features=True)  # (B, 512)
+            
+            # project
+            prefix_emb = projector(features)  # (B, prefix_len, llama_dim)
+
+            # decode
+            # prompt
+            prompts = [DEFAULT_PROMPT] * prefix_emb.size(0)
+            prompt_inputs = caption_tokenizer(
+                prompts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+            ).input_ids.to(device)  # (B, prompt_len)
+
+            # generate
+            generated_ids = decoder.generate(
+                prefix_emb=prefix_emb,
+                input_ids=prompt_inputs,
+                max_new_tokens=20,
+            )
+
+            generated_texts = decoder.tokenizer.batch_decode(
+                generated_ids,
+                skip_special_tokens=True
+            )
+
+            # store
+            ground_truths = batch["labels"].clone()
+            ground_truths[ground_truths == -100] = caption_tokenizer.pad_token_id
+            ground_truth_texts = decoder.tokenizer.batch_decode(
+                ground_truths,
+                skip_special_tokens=True
+            )
+            
+            for gen_text, gt_text in zip(generated_texts, ground_truth_texts):
+                generations.append({
+                    "generated_caption": gen_text.strip(),
+                    "ground_truth": gt_text.strip()
+                })
+    # save
+    with open(generation_outputs_path, "w") as f:
+        json.dump(generations, f, indent=2)
+
+    print(f"{encoder_choice} decoder model generated captions saved to '{generation_outputs_path}'")
 
 
 if __name__ == "__main__":
