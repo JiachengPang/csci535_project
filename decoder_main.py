@@ -179,7 +179,7 @@ def main():
             )
             break
 
-    JSON_FILE = f"{encoder_choice}_training_progress.json"
+    JSON_FILE = f"./results/{encoder_choice}_training_progress.json"
     with open(JSON_FILE, "w") as f:
         json.dump(training_progress, f, indent=2)
 
