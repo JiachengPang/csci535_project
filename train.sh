@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-modes=(xnorm late)
+modes=(early)
 
 for mode in "${modes[@]}"; do
   echo "Running: python decoder_main.py --mode $mode"

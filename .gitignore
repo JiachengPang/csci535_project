@@ -1,5 +1,11 @@
 __pycache__
+
 iemocap
 iemocap_precomputed
 podcast
 precomputed_embeddings
+
+.DS_Store
+
+*.pth
+*.env

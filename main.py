@@ -1,45 +1,67 @@
 import copy
 import torch
 from transformers import RobertaModel, RobertaTokenizer, HubertModel, Wav2Vec2FeatureExtractor
-from models import XNormModel
+from models import XNormModel, EarlyFusionModel, LateFusionModel
 from utils import get_iemocap_data_loaders, collate_fn_raw, MetricsLogger
 from trainer import Trainer
+import argparse
 
 def main():
   device = 'cuda' if torch.cuda.is_available() else 'cpu'
   print(f'on device: {device}')
   torch.backends.cuda.matmul.allow_tf32 = False
-  logger = MetricsLogger(save_path="xnorm_training_metrics.json")
-
   emotion_labels = ['angry', 'frustrated', 'happy', 'sad', 'neutral']
-  # emotion_labels = ['neutral', 'happy', 'sad', 'angry', 'frustrated', 'excited', 'fear', 'disgust', 'surprise', 'other']
 
-  audio_checkpoint = 'facebook/hubert-base-ls960'
-  text_checkpoint = 'roberta-base'
+  # choose and create model
+  # parse arg
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--model', type=str, default='xnorm', choices=['xnorm', 'early', 'late'])
+  args = parser.parse_args()
 
-  tokenizer = RobertaTokenizer.from_pretrained(text_checkpoint)
-  processor = Wav2Vec2FeatureExtractor.from_pretrained(audio_checkpoint)
+  model_choice = args.model
+  print(f'Model to train: {model_choice}')
+  logger = MetricsLogger(save_path=f"./results/{model_choice}_training_metrics.json")
+  
+  # create model
+  if model_choice == 'xnorm':
+    audio_checkpoint = 'facebook/hubert-base-ls960'
+    text_checkpoint = 'roberta-base'
+    roberta = RobertaModel.from_pretrained(text_checkpoint)
+    hubert = HubertModel.from_pretrained(audio_checkpoint)
+  
+    # freeze params
+    for param in roberta.parameters():
+      param.requires_grad = False
+    for param in hubert.parameters():
+      param.requires_grad = False
 
-  train_loader, val_loader, test_loader = get_iemocap_data_loaders(
-    path='./iemocap', 
-    precomputed=False, 
-    batch_size=16, 
-    num_workers=0,
-    collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
-    # first_n=100
+    model = XNormModel(roberta=roberta, hubert=hubert, num_classes=len(emotion_labels))
+  elif model_choice == 'early':
+    model =  EarlyFusionModel()
+  elif model_choice == 'late':
+    model =  LateFusionModel()
+
+  # get loaders
+  if model_choice == 'xnorm':
+    tokenizer = RobertaTokenizer.from_pretrained(text_checkpoint)
+    processor = Wav2Vec2FeatureExtractor.from_pretrained(audio_checkpoint)
+
+    train_loader, val_loader, test_loader = get_iemocap_data_loaders(
+      path='./iemocap', 
+      precomputed=False, 
+      batch_size=2, 
+      num_workers=0,
+      collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
+    )
+  else: 
+    train_loader, val_loader, test_loader = get_iemocap_data_loaders(
+      path='./iemocap_precomputed',
+      precomputed=True,
+      batch_size=16,
+      num_workers=0,
+      collate_fn=None,
     )
   
-  roberta = RobertaModel.from_pretrained(text_checkpoint)
-  hubert = HubertModel.from_pretrained(audio_checkpoint)
-  
-  # freeze params
-  for param in roberta.parameters():
-    param.requires_grad = False
-
-  for param in hubert.parameters():
-    param.requires_grad = False
-
-  model = XNormModel(roberta=roberta, hubert=hubert, num_classes=len(emotion_labels))
   optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
   trainer = Trainer(model.to(device), optimizer, device=device)
   
@@ -47,7 +69,7 @@ def main():
   best_model_state = None
   patience = 5
   counter = 0
-  n_epoch = 20
+  n_epoch = 50
 
   for epoch in range(1, n_epoch + 1):
     train_loss, train_acc, train_f1 = trainer.train_one_epoch(train_loader, epoch)
@@ -74,13 +96,14 @@ def main():
   
   if best_model_state:
     trainer.model.load_state_dict(best_model_state)
+    checkpoint_save_path = f'./results/{model_choice}_checkpoint.pth'
     torch.save({
       'epoch': epoch,
       'model_state_dict': trainer.model.state_dict(),
       'optimizer_state_dict': optimizer.state_dict(),
       'val_loss': best_val_loss,
-      }, 'xnorm_checkpoint.pth')
-    print("Best model saved to 'best_xnorm_model.pth'")
+      }, checkpoint_save_path)
+    print(f"Best model saved to {checkpoint_save_path}")
   
   test_loss, test_acc, test_f1 = trainer.evaluate(test_loader)
   print(f'test loss: {test_loss:.4f}, test acc: {test_acc:.4f}, test f1: {test_f1:.4f}')
