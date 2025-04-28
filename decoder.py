@@ -4,7 +4,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 class ProjectionLayer(nn.Module):
-    def __init__(self, encoder_dim, llama_dim, prefix_len=10):
+    def __init__(self, encoder_dim, llama_dim, prefix_len=10, pretrained_weights=None):
         super().__init__()
         self.prefix_len = prefix_len
         self.projection = nn.Sequential(
@@ -12,6 +12,9 @@ class ProjectionLayer(nn.Module):
             nn.Tanh(),
             nn.Linear(llama_dim, llama_dim * prefix_len),
         )
+
+        if pretrained_weights:
+            self.load_state_dict(pretrained_weights)
 
     def forward(self, encoding):
         x = self.projection(encoding)
@@ -21,10 +24,13 @@ class ProjectionLayer(nn.Module):
 
 
 class MultimodalDecoder(nn.Module):
-    def __init__(self, llama_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
+    def __init__(self, llama_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0", pretrained_weights=None):
         super().__init__()
         self.llama = AutoModelForCausalLM.from_pretrained(llama_name)
         self.tokenizer = AutoTokenizer.from_pretrained(llama_name)
+
+        if pretrained_weights:
+            self.load_state_dict(pretrained_weights)
 
     def forward(self, prefix_emb, input_ids=None, attention_mask=None, labels=None):
         token_emb = self.llama.model.embed_tokens(
@@ -69,9 +75,3 @@ class MultimodalDecoder(nn.Module):
         )
 
         return outputs
-
-
-if __name__ == "__main__":
-    llama_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    llama = AutoModelForCausalLM.from_pretrained(llama_name)
-    print(llama)

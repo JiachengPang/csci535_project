@@ -16,6 +16,7 @@ from utils import (
     collate_fn_caption_precomputed,
 )
 from trainer import CaptioningTrainer
+from decoder_main import load_encoder
 import json
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -26,26 +27,19 @@ caption_checkpoint = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
 DEFAULT_PROMPT = "Describe the emotion expressed in this speech by focusing on both the speaker's words and vocal characteristics. Your response:"
 
-
-def load_encoder(model_choice, num_classes):
-    print(f"Loading encoder: {model_choice}")
-    if model_choice == "xnorm":
-        roberta = RobertaModel.from_pretrained(text_checkpoint)
-        hubert = HubertModel.from_pretrained(audio_checkpoint)
-
-        # freeze roberta and hubert
-        for param in roberta.parameters():
-            param.requires_grad = False
-        for param in hubert.parameters():
-            param.requires_grad = False
-
-        encoder = XNormModel(roberta=roberta, hubert=hubert, num_classes=num_classes)
-    elif model_choice == "early":
-        encoder = EarlyFusionModel()
-    elif model_choice == "late":
-        encoder = LateFusionModel()
-
-    return encoder
+def load_projector_decoder(model_choice, from_pretrained=None):
+    print(f'Loading projector/decoder: model: {model_choice}, from_pretrained: {from_pretrained}')
+    encoder_dim = 1536 if model_choice == 'xnorm' else 512
+    
+    if from_pretrained:
+        pretrained = torch.load(from_pretrained, map_location='cpu')
+        projector = ProjectionLayer(encoder_dim, 2048, pretrained_weights=pretrained['projector_state_dict'])
+        decoder = MultimodalDecoder(pretrained_weights=pretrained['decoder_state_dict'])
+    else:
+        projector = ProjectionLayer(encoder_dim, 2048)
+        decoder = MultimodalDecoder()
+    
+    return projector, decoder
 
 
 def main():
@@ -61,13 +55,13 @@ def main():
     encoder_choice = args.model
 
     # encoder
-    encoder = load_encoder(encoder_choice, len(emotion_labels))
-    projector = load_projector()
 
-    if encoder_choice == "xnorm":
-        projector = ProjectionLayer(1536, 2048)
-    else:
-        projector = ProjectionLayer(512, 2048)
+    encoder_ckpt = f'./results/{encoder_choice}_checkpoint.pth'
+    projector_ckpt = f'./results/{encoder_choice}_projector_checkpoint.pth'
+    decoder_ckpt = f'./results/{encoder_choice}_decoder_checkpoint.pth'
+    encoder = load_encoder(encoder_choice, len(emotion_labels), from_pretrained=encoder_ckpt)
+    projector = load_projector(encoder_choice, from_pretrained=projector_ckpt)
+    decoder = load_decoder()
 
     decoder = MultimodalDecoder()
     caption_tokenizer = decoder.tokenizer

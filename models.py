@@ -118,7 +118,6 @@ class XNormModel(nn.Module):
         )
 
         if from_pretrained:
-            print(f"Loading weights from {from_pretrained}")
             ckpt = torch.load(from_pretrained, map_location="cpu")
             self.load_state_dict(ckpt["model_state_dict"])
 
@@ -176,8 +175,8 @@ class EarlyFusionModel(nn.Module):
             text_input_size + audio_input_size, hidden_size
         )
         self.classifier = Classifier(hidden_size, hidden_size, num_classes, dropout)
+
         if from_pretrained:
-            print(f"Loading weights from {from_pretrained}")
             ckpt = torch.load(from_pretrained, map_location="cpu")
             self.load_state_dict(ckpt["model_state_dict"])
 
@@ -212,8 +211,8 @@ class LateFusionModel(nn.Module):
         self.audio_classifier = Classifier(
             audio_input_size, hidden_size, num_classes, dropout
         )
+        
         if from_pretrained:
-            print(f"Loading weights from {from_pretrained}")
             ckpt = torch.load(from_pretrained, map_location="cpu")
             self.load_state_dict(ckpt["model_state_dict"])
 
