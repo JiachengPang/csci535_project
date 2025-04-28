@@ -66,7 +66,7 @@ def main():
     encoder_choice = args.model
 
     # encoder
-    ckpt_path = f"{encoder_choice}_checkpoint.pth"
+    ckpt_path = f"./results/{encoder_choice}_checkpoint.pth"
     encoder = load_encoder(
         encoder_choice, len(emotion_labels), from_pretrained=ckpt_path
     )
