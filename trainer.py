@@ -47,13 +47,13 @@ class Trainer:
     f1 = f1_score(all_labels, all_preds, average='weighted')
     return total_loss / len(loader), acc, f1
   
-  def evaluate(self, loader):
+  def evaluate(self, loader, desc='Val'):
     self.model.eval()
     total_loss = 0
     all_preds, all_labels = [], []
 
     with torch.no_grad():
-      for batch in tqdm(loader, desc='Val'):
+      for batch in tqdm(loader, desc=f'{desc}'):
         loss, preds, labels = self.step(batch)
         total_loss += loss
         all_preds.extend(preds.cpu().tolist())
