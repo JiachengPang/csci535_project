@@ -28,7 +28,7 @@ DEFAULT_PROMPT = "Describe the emotion expressed in this speech by focusing on b
 
 
 def load_encoder(model_choice, num_classes, from_pretrained=None):
-    print(f"Loading encoder: {model_choice}")
+    print(f"Loading encoder: {model_choice}, from_pretrained {from_pretrained}")
     if model_choice == "xnorm":
         roberta = RobertaModel.from_pretrained(text_checkpoint)
         hubert = HubertModel.from_pretrained(audio_checkpoint)
@@ -66,7 +66,7 @@ def main():
     encoder_choice = args.model
 
     # encoder
-    ckpt_path = f"{encoder_choice}_checkpoint.pth"
+    ckpt_path = f"./results/{encoder_choice}_checkpoint.pth"
     encoder = load_encoder(
         encoder_choice, len(emotion_labels), from_pretrained=ckpt_path
     )
