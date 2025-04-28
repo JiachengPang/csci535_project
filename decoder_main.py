@@ -125,7 +125,7 @@ def main():
     best_val_loss = float("inf")
     counter = 0
 
-    best_model_path = f"{encoder_choice}_best_captioning_model.pth"
+    best_model_path = f"./results/{encoder_choice}_best_captioning_model.pth"
     training_progress = []
 
     epoch_bar = trange(1, num_epochs + 1, desc="Training Epochs")
