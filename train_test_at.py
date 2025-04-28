@@ -7,40 +7,12 @@ from transformers import RobertaTokenizer, Wav2Vec2FeatureExtractor
 from models_other.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
 
-from utils import get_iemocap_data_loaders, collate_fn_raw
+from utils import get_iemocap_data_loaders, collate_fn_raw, MetricsLogger, EarlyStopping
+
+from sklearn.metrics import f1_score
 
 
-class EarlyStopping:
-    def __init__(
-        self,
-        patience=5,
-        min_delta=0.001,
-        checkpoint_path="best_model.pth",
-        verbose=True,
-    ):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.checkpoint_path = checkpoint_path
-        self.verbose = verbose
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-
-    def __call__(self, val_acc, model):
-        if self.best_score is None or val_acc > self.best_score + self.min_delta:
-            self.best_score = val_acc
-            self.counter = 0
-            torch.save(model.state_dict(), self.checkpoint_path)
-            if self.verbose:
-                print(
-                    f"Validation accuracy improved. Saving model to {self.checkpoint_path}"
-                )
-        else:
-            self.counter += 1
-            if self.verbose:
-                print(f"EarlyStopping counter: {self.counter} out of {self.patience}")
-            if self.counter >= self.patience:
-                self.early_stop = True
+MODEL = "at_mbt"
 
 
 def parse_options():
@@ -49,9 +21,9 @@ def parse_options():
     parser.add_argument("--lr", type=float, default=3e-4, help="initial learning rate")
     parser.add_argument("--batch_size", type=int, default=8, help="batchsize")
     parser.add_argument(
-        "--num_epochs", type=int, default=15, help="total training epochs"
+        "--num_epochs", type=int, default=50, help="total training epochs"
     )
-    parser.add_argument("--seed", type=int, default=1111, help="random seed")
+    parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument(
         "--adapter_dim", type=int, default=8, help="dimension of the adapter"
     )
@@ -101,6 +73,8 @@ def parse_options():
 def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
     model.train()
     total_loss, total_correct, total_samples = 0, 0, 0
+    pred = []
+    true = []
 
     for batch in loader:
         a = batch["audio_inputs"].input_values
@@ -119,13 +93,21 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
         total_loss += loss.item()
         total_correct += (logits.argmax(dim=1) == l).sum().item()
         total_samples += l.size(0)
+        pred.extend(logits.argmax(dim=1).cpu().numpy())
+        true.extend(l.cpu().numpy())
 
-    return total_loss / len(loader), (total_correct / total_samples) * 100
+    pred = np.array(pred)
+    true = np.array(true)
+    f1 = f1_score(true, pred, average="macro")
+
+    return total_loss / len(loader), (total_correct / total_samples) * 100, f1
 
 
 def val_one_epoch(loader, model, loss_fn, device, precomputed):
     model.eval()
     total_loss, total_correct, total_samples = 0, 0, 0
+    pred = []
+    true = []
     with torch.no_grad():
         for batch in loader:
             a = batch["audio_inputs"].input_values
@@ -139,8 +121,14 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
             total_loss += loss.item()
             total_correct += (logits.argmax(dim=1) == l).sum().item()
             total_samples += l.size(0)
+            pred.extend(logits.argmax(dim=1).cpu().numpy())
+            true.extend(l.cpu().numpy())
 
-    return total_loss / len(loader), (total_correct / total_samples) * 100
+    pred = np.array(pred)
+    true = np.array(true)
+    f1 = f1_score(true, pred, average="macro")
+
+    return total_loss / len(loader), (total_correct / total_samples) * 100, f1
 
 
 def train_test(args):
@@ -150,7 +138,7 @@ def train_test(args):
     trainloader, valloader, testloader = get_iemocap_data_loaders(
         path="./iemocap",
         precomputed=False,
-        batch_size=16,
+        batch_size=args.batch_size,
         num_workers=0,
         collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
     )
@@ -172,16 +160,22 @@ def train_test(args):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
-    early_stopper = EarlyStopping(patience=5, checkpoint_path="best_model.pth")
+    early_stopper = EarlyStopping(model=MODEL, patience=10)
+
+    logger = MetricsLogger(save_path=f"./results/{MODEL}_training_metrics.json")
 
     best_acc = 0
     for epoch in range(args.num_epochs):
-        train_loss, train_acc = train_one_epoch(
+        train_loss, train_acc, train_f1 = train_one_epoch(
             trainloader, model, optimizer, loss_fn, args.device, args.precomputed
         )
-        val_loss, val_acc = val_one_epoch(
+        val_loss, val_acc, val_f1 = val_one_epoch(
             valloader, model, loss_fn, args.device, args.precomputed
         )
+
+        logger.log_train(train_loss, train_acc, train_f1)
+        logger.log_val(val_loss, val_acc, val_f1)
+        logger.save()
 
         print(
             f"Epoch {epoch + 1}: Train Loss {train_loss:.4f}, Train Acc {train_acc:.2f}%, Val Loss {val_loss:.4f}, Val Acc {val_acc:.2f}%"
@@ -197,10 +191,14 @@ def train_test(args):
     print("\nBest Validation Accuracy:", round(best_acc, 2), "%")
 
     # Load best model for evaluation
-    model.load_state_dict(torch.load("best_model.pth"))
-    final_test_loss, final_test_acc = val_one_epoch(
+    model.load_state_dict(torch.load(f"{MODEL}_best_model.pth"))
+    final_test_loss, final_test_acc, final_test_f1 = val_one_epoch(
         testloader, model, loss_fn, args.device, args.precomputed
     )
+
+    logger.log_test(final_test_loss, final_test_acc, final_test_f1)
+    logger.save()
+
     print(f"Final Test Accuracy (Best Model): {final_test_acc:.2f}%")
 
 
