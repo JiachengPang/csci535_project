@@ -413,12 +413,15 @@ def collate_fn_raw_ddp(batch, tokenizer, processor, sampling_rate=16000):
 class EarlyStopping:
     def __init__(
         self,
+        name,
         model,
         patience=5,
         min_delta=0.001,
         verbose=True,
     ):
-        checkpoint_path = (f"{model}_best_model.pth",)
+        checkpoint_path = (
+            f"./results/{name}_checkpoint.pth",
+        )  # ./results/{encoder_choice}_checkpoint.pth
         self.patience = patience
         self.min_delta = min_delta
         self.checkpoint_path = checkpoint_path

@@ -12,7 +12,7 @@ from utils import get_iemocap_data_loaders, collate_fn_raw, MetricsLogger, Early
 from sklearn.metrics import f1_score
 
 
-MODEL = "at_mbt"
+MODEL = "mbt"
 
 
 def parse_options():
@@ -160,7 +160,7 @@ def train_test(args):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
-    early_stopper = EarlyStopping(model=MODEL, patience=10)
+    early_stopper = EarlyStopping(name=MODEL, model=model, patience=10)
 
     logger = MetricsLogger(save_path=f"./results/{MODEL}_training_metrics.json")
 
@@ -191,7 +191,9 @@ def train_test(args):
     print("\nBest Validation Accuracy:", round(best_acc, 2), "%")
 
     # Load best model for evaluation
-    model.load_state_dict(torch.load(f"{MODEL}_best_model.pth"))
+    model.load_state_dict(
+        torch.load(f"./results/{MODEL}_checkpoint.pth")
+    )  # ./results/{encoder_choice}_checkpoint.pth
     final_test_loss, final_test_acc, final_test_f1 = val_one_epoch(
         testloader, model, loss_fn, args.device, args.precomputed
     )
