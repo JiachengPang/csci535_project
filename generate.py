@@ -80,8 +80,8 @@ def main():
                 audio_processor=audio_processor,
                 caption_tokenizer=caption_tokenizer,
             ),
-            batch_size=1,
-            # first_n=100,
+            batch_size=16,
+            # # first_n=100,
         )
     else:
         _, _, test_loader = get_iemocap_caption_data_loaders(
@@ -90,8 +90,8 @@ def main():
             collate_fn=lambda batch: collate_fn_caption_precomputed(
                 batch, caption_tokenizer=caption_tokenizer
             ),
-            batch_size=1,
-            # first_n=100,
+            batch_size=16,
+            # # first_n=100,
         )
 
     generation_outputs_path = f"./results/{encoder_choice}_test_generations.json"
@@ -148,7 +148,7 @@ def main():
             generated_ids = decoder.generate(
                 prefix_emb=prefix_emb,
                 input_ids=prompt_inputs,
-                max_new_tokens=20,
+                max_new_tokens=50,
             )
 
             generated_texts = decoder.tokenizer.batch_decode(

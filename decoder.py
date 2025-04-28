@@ -48,7 +48,7 @@ class MultimodalDecoder(nn.Module):
 
         return outputs
 
-    def generate(self, prefix_emb, input_ids, max_new_tokens=20):
+    def generate(self, prefix_emb, input_ids, max_new_tokens=50):
         batch_size = prefix_emb.size(0)
 
         start_tokens = torch.full(

@@ -93,8 +93,8 @@ def main():
                 audio_processor=audio_processor,
                 caption_tokenizer=caption_tokenizer,
             ),
-            batch_size=1,
-            # first_n=100,
+            batch_size=16,
+            # # first_n=100,
         )
     else:
         train_loader, val_loader, test_loader = get_iemocap_caption_data_loaders(
@@ -103,8 +103,8 @@ def main():
             collate_fn=lambda batch: collate_fn_caption_precomputed(
                 batch, caption_tokenizer=caption_tokenizer
             ),
-            batch_size=1,
-            # first_n=100,
+            batch_size=16,
+            # # first_n=100,
         )
 
     # optimizer and trainer
@@ -179,7 +179,7 @@ def main():
             )
             break
 
-    JSON_FILE = f"{encoder_choice}_training_progress.json"
+    JSON_FILE = f"./results/{encoder_choice}_training_progress.json"
     with open(JSON_FILE, "w") as f:
         json.dump(training_progress, f, indent=2)
 
