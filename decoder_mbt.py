@@ -1,18 +1,20 @@
 import torch
 from torch.optim import AdamW
 from transformers import (
+    RobertaModel,
+    RobertaTokenizer,
     HubertModel,
     Wav2Vec2FeatureExtractor,
 )
+from models import XNormModel, EarlyFusionModel, LateFusionModel
+from models_other.audio_text_model import ATmodel
+from tqdm import tqdm, trange
 import argparse
 from decoder import ProjectionLayer, MultimodalDecoder
 from utils import (
     get_iemocap_caption_data_loaders,
     collate_fn_caption,
     collate_fn_caption_precomputed,
-    collate_fn_raw,
-    EarlyStopping,
-    MetricsLogger,
 )
 from trainer import CaptioningTrainer
 import json
@@ -48,6 +50,13 @@ def load_encoder(model_choice, num_classes, from_pretrained=None):
         encoder = EarlyFusionModel(from_pretrained=from_pretrained)
     elif model_choice == "late":
         encoder = LateFusionModel(from_pretrained=from_pretrained)
+    elif model_choice == "mbt":
+        encoder = ATmodel(
+            num_classes=num_classes,
+            num_latents=4,
+            dim=8,
+            from_pretrained=from_pretrained,
+        )
 
     return encoder
 
@@ -59,7 +68,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model", type=str, default="xnorm", choices=["xnorm", "early", "late"]
+        "--model", type=str, default="xnorm", choices=["xnorm", "early", "late", "mbt"]
     )
     args = parser.parse_args()
     encoder_choice = args.model
@@ -72,6 +81,8 @@ def main():
 
     if encoder_choice == "xnorm":
         projector = ProjectionLayer(1536, 2048)
+    elif encoder_choice == "mbt":
+        projector = ProjectionLayer(768, 2048)
     else:
         projector = ProjectionLayer(512, 2048)
 
@@ -79,7 +90,7 @@ def main():
     caption_tokenizer = decoder.tokenizer
 
     # data
-    if encoder_choice == "xnorm":
+    if encoder_choice in ("xnorm", "mbt"):
         text_tokenizer = RobertaTokenizer(text_checkpoint)
         audio_processor = Wav2Vec2FeatureExtractor(audio_checkpoint)
 
@@ -92,8 +103,8 @@ def main():
                 audio_processor=audio_processor,
                 caption_tokenizer=caption_tokenizer,
             ),
-            batch_size=1,
-            # first_n=100,
+            batch_size=16,
+            # # first_n=100,
         )
     else:
         train_loader, val_loader, test_loader = get_iemocap_caption_data_loaders(
@@ -102,8 +113,8 @@ def main():
             collate_fn=lambda batch: collate_fn_caption_precomputed(
                 batch, caption_tokenizer=caption_tokenizer
             ),
-            batch_size=1,
-            # first_n=100,
+            batch_size=16,
+            # # first_n=100,
         )
 
     # optimizer and trainer
@@ -178,7 +189,7 @@ def main():
             )
             break
 
-    JSON_FILE = f"{encoder_choice}_training_progress.json"
+    JSON_FILE = f"./results/{encoder_choice}_training_progress.json"
     with open(JSON_FILE, "w") as f:
         json.dump(training_progress, f, indent=2)
 

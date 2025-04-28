@@ -71,11 +71,13 @@ class ATmodel(nn.Module):
         fused = 0.5 * (audio_cls + text_cls)
         return fused
 
-    def forward(self, audio_input, text_input, text_mask):
+    def forward(self, audio_input, text_input, text_mask, return_features=False):
         with torch.no_grad():
             audio_tokens = self.forward_audio_features(audio_input)
             text_tokens = self.forward_text_features(text_input, text_mask)
             fused = self.forward_encoder(audio_tokens, text_tokens)
+        if return_features:
+            return fused
         logits = self.classifier(fused)
         return logits
 
