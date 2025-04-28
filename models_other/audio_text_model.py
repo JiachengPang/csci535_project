@@ -81,16 +81,4 @@ class ATmodel(nn.Module):
 
 
 if __name__ == "__main__":
-    # audio_encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
-    # print(audio_encoder.feature_extractor)
-    # print(audio_encoder.feature_projection)
-    # print(audio_encoder.encoder.pos_conv_embed)
-    # print(audio_encoder.encoder.layer_norm)
-    # print(audio_encoder.encoder.dropout)
-    # print(audio_encoder.encoder.layers)
-
-    # text_encoder = RobertaModel.from_pretrained("roberta-base")
-    # print(text_encoder.embeddings)
-    # print(text_encoder.encoder.layer)
-    # print(text_encoder.pooler)
     pass
