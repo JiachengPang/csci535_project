@@ -11,47 +11,10 @@ from transformers import RobertaTokenizer, Wav2Vec2FeatureExtractor
 from models_other.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
 
-from utils import MetricsLogger
+from utils import MetricsLogger, EarlyStopping
 from sklearn.metrics import f1_score
 
 MODEL = "at_mbt"
-
-
-class EarlyStopping:
-    """Early stops training if validation accuracy doesn't improve after a given patience."""
-
-    def __init__(
-        self,
-        patience: int = 5,
-        min_delta: float = 0.001,
-        checkpoint_path: str = f"{MODEL}_best_model.pth",
-        verbose: bool = True,
-    ) -> None:
-        self.patience = patience
-        self.min_delta = min_delta
-        self.checkpoint_path = checkpoint_path
-        self.verbose = verbose
-        self.counter = 0
-        self.best_score: float | None = None
-        self.early_stop = False
-
-    def __call__(self, val_acc: float, model: torch.nn.Module, rank: int = 0):
-        """Update the early‑stopping counter and save the best model from rank‑0 only."""
-        if self.best_score is None or val_acc > self.best_score + self.min_delta:
-            self.best_score = val_acc
-            self.counter = 0
-            if rank == 0:
-                torch.save(model.state_dict(), self.checkpoint_path)
-                if self.verbose:
-                    print(
-                        f"Validation accuracy improved. Saving model to {self.checkpoint_path}"
-                    )
-        else:
-            self.counter += 1
-            if self.verbose and rank == 0:
-                print(f"EarlyStopping counter: {self.counter} / {self.patience}")
-            if self.counter >= self.patience:
-                self.early_stop = True
 
 
 def parse_options():
@@ -289,9 +252,7 @@ def main():
 
     optimizer = torch.optim.Adam(model.parameters(), lr=opts.lr)
     loss_fn = nn.CrossEntropyLoss().to(opts.device)
-    early_stopper = EarlyStopping(
-        patience=10, checkpoint_path=f"{MODEL}_best_model.pth", verbose=(rank == 0)
-    )
+    early_stopper = EarlyStopping(model=MODEL, patience=10, verbose=(rank == 0))
 
     best_acc = 0.0
     for epoch in range(opts.num_epochs):

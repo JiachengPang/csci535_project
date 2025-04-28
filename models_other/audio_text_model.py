@@ -5,7 +5,7 @@ from .pet_modules import AdaptFormerAT
 
 
 class ATmodel(nn.Module):
-    def __init__(self, num_classes, num_latents=16, dim=128):
+    def __init__(self, num_classes, num_latents=16, dim=128, from_pretrained=None):
         super(ATmodel, self).__init__()
 
         self.audio_encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
@@ -18,7 +18,6 @@ class ATmodel(nn.Module):
 
         self.audio_hidden_size = self.audio_encoder.config.hidden_size  # 768
         self.text_hidden_size = self.text_encoder.config.hidden_size  # 768
-
 
         self.audio_text_blocks = nn.Sequential(
             *[
@@ -36,6 +35,12 @@ class ATmodel(nn.Module):
         self.norm_text = nn.LayerNorm(768)
 
         self.classifier = nn.Linear(768, num_classes)
+
+        if from_pretrained:
+            print(f"Loading weights from {from_pretrained}")
+            self.load_state_dict(
+                torch.load(from_pretrained, map_location="cpu")["model_state_dict"]
+            )
 
     def forward_audio_features(self, x):
         out = self.audio_encoder.feature_extractor(x)

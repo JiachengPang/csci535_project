@@ -7,45 +7,12 @@ from transformers import RobertaTokenizer, Wav2Vec2FeatureExtractor
 from models_other.audio_text_model import ATmodel
 from custom_datasets import IEMOCAPDataset
 
-from utils import get_iemocap_data_loaders, collate_fn_raw, MetricsLogger
+from utils import get_iemocap_data_loaders, collate_fn_raw, MetricsLogger, EarlyStopping
 
 from sklearn.metrics import f1_score
 
 
 MODEL = "at_mbt"
-
-
-class EarlyStopping:
-    def __init__(
-        self,
-        patience=5,
-        min_delta=0.001,
-        checkpoint_path=f"{MODEL}_best_model.pth",
-        verbose=True,
-    ):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.checkpoint_path = checkpoint_path
-        self.verbose = verbose
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-
-    def __call__(self, val_acc, model):
-        if self.best_score is None or val_acc > self.best_score + self.min_delta:
-            self.best_score = val_acc
-            self.counter = 0
-            torch.save(model.state_dict(), self.checkpoint_path)
-            if self.verbose:
-                print(
-                    f"Validation accuracy improved. Saving model to {self.checkpoint_path}"
-                )
-        else:
-            self.counter += 1
-            if self.verbose:
-                print(f"EarlyStopping counter: {self.counter} out of {self.patience}")
-            if self.counter >= self.patience:
-                self.early_stop = True
 
 
 def parse_options():
@@ -193,9 +160,7 @@ def train_test(args):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
-    early_stopper = EarlyStopping(
-        patience=10, checkpoint_path=f"{MODEL}_best_model.pth"
-    )
+    early_stopper = EarlyStopping(model=MODEL, patience=10)
 
     logger = MetricsLogger(save_path=f"./results/{MODEL}_training_metrics.json")
 
