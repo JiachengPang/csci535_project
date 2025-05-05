@@ -24,6 +24,7 @@ def main():
 
     candidates, references = load_captions(args.path)
     evaluate_bertscore(candidates, references)
+    print(f'Path: {args.path}')
 
 if __name__ == "__main__":
     main()
