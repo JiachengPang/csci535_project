@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 from transformers import HubertModel, RobertaModel, HubertConfig, RobertaConfig
-from .pet_modules import AdaptFormer
+from .pet_modules import AdaptFormerAT
 
 
 class ATmodel(nn.Module):
-    def __init__(self, num_classes, num_latents=16, dim=128):
+    def __init__(self, num_classes, num_latents=16, dim=128, from_pretrained=None):
         super(ATmodel, self).__init__()
 
         self.audio_encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
@@ -19,24 +19,15 @@ class ATmodel(nn.Module):
         self.audio_hidden_size = self.audio_encoder.config.hidden_size  # 768
         self.text_hidden_size = self.text_encoder.config.hidden_size  # 768
 
-        class DummyBlock:
-            def __init__(self, norm1, attn, norm2, mlp):
-                self.norm1 = norm1
-                self.attn = attn
-                self.norm2 = norm2
-                self.mlp = mlp
-
-        dummy_layer = DummyBlock(
-            norm1=nn.LayerNorm(768),
-            attn=nn.MultiheadAttention(768, 12, batch_first=True),
-            norm2=nn.LayerNorm(768),
-            mlp=nn.Sequential(nn.Linear(768, 3072), nn.GELU(), nn.Linear(3072, 768)),
-        )
-
         self.audio_text_blocks = nn.Sequential(
             *[
-                AdaptFormer(num_latents, dim, dummy_layer, dummy_layer)
-                for _ in range(12)
+                AdaptFormerAT(
+                    num_latents,
+                    dim,
+                    self.audio_encoder.encoder.layers[i],
+                    self.text_encoder.encoder.layer[i],
+                )
+                for i in range(12)
             ]
         )
 
@@ -45,28 +36,51 @@ class ATmodel(nn.Module):
 
         self.classifier = nn.Linear(768, num_classes)
 
+        if from_pretrained:
+            print(f"Loading weights from {from_pretrained}")
+            ckpt = torch.load(from_pretrained, map_location="cpu")
+            # print(ckpt.keys())
+            self.load_state_dict(ckpt)
+
     def forward_audio_features(self, x):
-        out = self.audio_encoder(x).last_hidden_state  # (B, T, 768)
+        out = self.audio_encoder.feature_extractor(x)
+        out = out.transpose(1, 2)
+        out = self.audio_encoder.feature_projection(out)
+        out = self.audio_encoder.encoder.pos_conv_embed(out)
+        out = self.audio_encoder.encoder.layer_norm(out)
+        out = self.audio_encoder.encoder.dropout(out)
         return out
 
     def forward_text_features(self, x, attn_mask):
-        out = self.text_encoder(
-            x, attention_mask=attn_mask
-        ).last_hidden_state  # (B, T, 768)
+        # out = self.text_encoder(
+        #     x, attention_mask=attn_mask
+        # ).last_hidden_state  # (B, T, 768)
+        out = self.text_encoder.embeddings(x)
         return out
 
     def forward_encoder(self, audio_tokens, text_tokens):
         for blk in self.audio_text_blocks:
             audio_tokens, text_tokens = blk(audio_tokens, text_tokens)
 
-        audio_cls = self.norm_audio(audio_tokens[:, 0])
-        text_cls = self.norm_text(text_tokens[:, 0])
+        audio_cls = audio_tokens[:, 0]
+        text_cls = self.text_encoder.pooler(text_tokens)
+
+        audio_cls = self.norm_audio(audio_cls)
+        text_cls = self.norm_text(text_cls)
+
         fused = 0.5 * (audio_cls + text_cls)
         return fused
 
-    def forward(self, audio_input, text_input, text_mask):
-        audio_tokens = self.forward_audio_features(audio_input)
-        text_tokens = self.forward_text_features(text_input, text_mask)
-        fused = self.forward_encoder(audio_tokens, text_tokens)
+    def forward(self, audio_input, text_input, text_mask=None, return_features=False):
+        with torch.no_grad():
+            audio_tokens = self.forward_audio_features(audio_input)
+            text_tokens = self.forward_text_features(text_input, text_mask)
+            fused = self.forward_encoder(audio_tokens, text_tokens)
+        if return_features:
+            return fused
         logits = self.classifier(fused)
         return logits
+
+
+if __name__ == "__main__":
+    pass

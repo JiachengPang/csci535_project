@@ -38,9 +38,9 @@ class ATmodel(nn.Module):
 
         if from_pretrained:
             print(f"Loading weights from {from_pretrained}")
-            self.load_state_dict(
-                torch.load(from_pretrained, map_location="cpu")["model_state_dict"]
-            )
+            ckpt = torch.load(from_pretrained, map_location="cpu")
+            # print(ckpt.keys())
+            self.load_state_dict(ckpt)
 
     def forward_audio_features(self, x):
         out = self.audio_encoder.feature_extractor(x)
@@ -50,6 +50,11 @@ class ATmodel(nn.Module):
         out = self.audio_encoder.encoder.layer_norm(out)
         out = self.audio_encoder.encoder.dropout(out)
         return out
+
+    # def forward_audio_features(self, x):
+    #     with torch.no_grad():
+    #         out = self.audio_encoder(input_values=x).last_hidden_state
+    #     return out
 
     def forward_text_features(self, x, attn_mask):
         # out = self.text_encoder(
@@ -71,7 +76,7 @@ class ATmodel(nn.Module):
         fused = 0.5 * (audio_cls + text_cls)
         return fused
 
-    def forward(self, audio_input, text_input, text_mask, return_features=False):
+    def forward(self, audio_input, text_input, text_mask=None, return_features=False):
         with torch.no_grad():
             audio_tokens = self.forward_audio_features(audio_input)
             text_tokens = self.forward_text_features(text_input, text_mask)

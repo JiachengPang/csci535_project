@@ -27,7 +27,12 @@ def load_projector_decoder(model_choice, from_pretrained=None):
     print(
         f"Loading projector/decoder: model: {model_choice}, from_pretrained: {from_pretrained}"
     )
-    encoder_dim = 1536 if model_choice == "xnorm" else 512
+    if model_choice == "xnorm":
+        encoder_dim = 1536
+    elif model_choice == "mbt":
+        encoder_dim = 768
+    else:
+        encoder_dim = 512
 
     if from_pretrained:
         pretrained = torch.load(from_pretrained, map_location="cpu")
@@ -49,7 +54,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model", type=str, default="xnorm", choices=["xnorm", "early", "late"]
+        "--model", type=str, default="xnorm", choices=["xnorm", "early", "late", "mbt"]
     )
     args = parser.parse_args()
     encoder_choice = args.model
@@ -67,7 +72,7 @@ def main():
     caption_tokenizer = decoder.tokenizer
 
     # data
-    if encoder_choice == "xnorm":
+    if encoder_choice in ("xnorm", "mbt"):
         text_tokenizer = RobertaTokenizer.from_pretrained(text_checkpoint)
         audio_processor = Wav2Vec2FeatureExtractor.from_pretrained(audio_checkpoint)
 
@@ -81,7 +86,7 @@ def main():
                 caption_tokenizer=caption_tokenizer,
             ),
             batch_size=16,
-            # # first_n=100,
+            # first_n=100,
         )
     else:
         _, _, test_loader = get_iemocap_caption_data_loaders(
@@ -90,8 +95,8 @@ def main():
             collate_fn=lambda batch: collate_fn_caption_precomputed(
                 batch, caption_tokenizer=caption_tokenizer
             ),
-            batch_size=16,
-            # # first_n=100,
+            batch_size=166,
+            # # # first_n=100,
         )
 
     generation_outputs_path = f"./results/{encoder_choice}_test_generations.json"
@@ -122,7 +127,13 @@ def main():
                 features = encoder(
                     text_inputs, audio_inputs, return_features=True
                 )  # (B, 1536)
+            elif encoder_choice == "mbt":
+                a = batch["audio_inputs"].input_values
+                t = batch["text_inputs"].input_ids
+                m = batch["text_inputs"]["attention_mask"]
 
+                a, t, m = a.to(device), t.to(device), m.to(device)
+                features = encoder(a, t, return_features=True, text_mask=m)
             else:
                 text_embs = batch["text_embs"].to(device)  # (B, 768)
                 audio_embs = batch["audio_embs"].to(device)  # (B, 768)

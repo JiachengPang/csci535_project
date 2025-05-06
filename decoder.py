@@ -24,7 +24,9 @@ class ProjectionLayer(nn.Module):
 
 
 class MultimodalDecoder(nn.Module):
-    def __init__(self, llama_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0", pretrained_weights=None):
+    def __init__(
+        self, llama_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0", pretrained_weights=None
+    ):
         super().__init__()
         self.llama = AutoModelForCausalLM.from_pretrained(llama_name)
         self.tokenizer = AutoTokenizer.from_pretrained(llama_name)
