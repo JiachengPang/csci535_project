@@ -42,13 +42,18 @@ class ATmodel(nn.Module):
             # print(ckpt.keys())
             self.load_state_dict(ckpt)
 
+    # def forward_audio_features(self, x):
+    #     out = self.audio_encoder.feature_extractor(x)
+    #     out = out.transpose(1, 2)
+    #     out = self.audio_encoder.feature_projection(out)
+    #     out = self.audio_encoder.encoder.pos_conv_embed(out)
+    #     out = self.audio_encoder.encoder.layer_norm(out)
+    #     out = self.audio_encoder.encoder.dropout(out)
+    #     return out
+
     def forward_audio_features(self, x):
-        out = self.audio_encoder.feature_extractor(x)
-        out = out.transpose(1, 2)
-        out = self.audio_encoder.feature_projection(out)
-        out = self.audio_encoder.encoder.pos_conv_embed(out)
-        out = self.audio_encoder.encoder.layer_norm(out)
-        out = self.audio_encoder.encoder.dropout(out)
+        with torch.no_grad():
+            out = self.audio_encoder(input_values=x).last_hidden_state
         return out
 
     def forward_text_features(self, x, attn_mask):
