@@ -38,9 +38,7 @@ class ATmodel(nn.Module):
 
         if from_pretrained:
             print(f"Loading weights from {from_pretrained}")
-            self.load_state_dict(
-                torch.load(from_pretrained, map_location="cpu")["model_state_dict"]
-            )
+            self.load_state_dict(torch.load(from_pretrained, map_location="cpu"))
 
     def forward_audio_features(self, x):
         out = self.audio_encoder.feature_extractor(x)
