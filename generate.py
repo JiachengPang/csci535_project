@@ -125,7 +125,7 @@ def main():
                 }
 
                 features = encoder(
-                    text_inputs, audio_inputs, return_features=True
+                    text_inputs, audio_inputs, return_features=True, text_mask=None
                 )  # (B, 1536)
 
             else:
