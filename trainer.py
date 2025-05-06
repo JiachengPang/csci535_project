@@ -59,35 +59,26 @@ class Trainer:
             all_labels.extend(labels.detach().cpu().tolist())
             loop.set_postfix(loss=loss.item())
 
-    acc = accuracy_score(all_labels, all_preds)
-    f1 = f1_score(all_labels, all_preds, average='weighted')
-    return total_loss / len(loader), acc, f1
-  
-  def evaluate(self, loader, desc='Val'):
+        acc = accuracy_score(all_labels, all_preds)
+        f1 = f1_score(all_labels, all_preds, average="weighted")
+        return total_loss / len(loader), acc, f1
+
+
+def evaluate(self, loader, desc="Val"):
     self.model.eval()
     total_loss = 0
     all_preds, all_labels = [], []
 
     with torch.no_grad():
-      for batch in tqdm(loader, desc=f'{desc}'):
-        loss, preds, labels = self.step(batch)
-        total_loss += loss
-        all_preds.extend(preds.cpu().tolist())
-        all_labels.extend(labels.cpu().tolist())
-    
-    acc = accuracy_score(all_labels, all_preds)
-    f1 = f1_score(all_labels, all_preds, average='weighted')
-    return total_loss / len(loader), acc, f1
-        with torch.no_grad():
-            for batch in tqdm(loader, desc="Val"):
-                loss, preds, labels = self.step(batch)
-                total_loss += loss
-                all_preds.extend(preds.cpu().tolist())
-                all_labels.extend(labels.cpu().tolist())
+        for batch in tqdm(loader, desc=f"{desc}"):
+            loss, preds, labels = self.step(batch)
+            total_loss += loss
+            all_preds.extend(preds.cpu().tolist())
+            all_labels.extend(labels.cpu().tolist())
 
-        acc = accuracy_score(all_labels, all_preds)
-        f1 = f1_score(all_labels, all_preds, average="weighted")
-        return total_loss / len(loader), acc, f1
+    acc = accuracy_score(all_labels, all_preds)
+    f1 = f1_score(all_labels, all_preds, average="weighted")
+    return total_loss / len(loader), acc, f1
 
 
 class CaptioningTrainer:

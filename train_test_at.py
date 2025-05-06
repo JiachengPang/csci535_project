@@ -189,12 +189,9 @@ def train_test(args):
 
     model = ATmodel(
         num_classes=num_classes, num_latents=args.num_latent, dim=args.adapter_dim
-        num_classes=num_classes, num_latents=args.num_latent, dim=args.adapter_dim
     )
 
-
     model.to(args.device)
-
 
     print(
         "\t Model Loaded | Trainable Params:",
@@ -228,7 +225,6 @@ def train_test(args):
         if early_stopper.early_stop:
             print("Early stopping triggered. Stopping training.")
             break
-
 
         early_stopper(val_acc, model)
         if early_stopper.early_stop:
