@@ -69,15 +69,15 @@ class Trainer:
         all_preds, all_labels = [], []
 
         with torch.no_grad():
-            for batch in tqdm(loader, desc=f"{desc}"):
+            for batch in tqdm(loader, desc=desc):
                 loss, preds, labels = self.step(batch)
                 total_loss += loss
                 all_preds.extend(preds.cpu().tolist())
                 all_labels.extend(labels.cpu().tolist())
 
-            acc = accuracy_score(all_labels, all_preds)
-            f1 = f1_score(all_labels, all_preds, average="weighted")
-            return total_loss / len(loader), acc, f1
+        acc = accuracy_score(all_labels, all_preds)
+        f1 = f1_score(all_labels, all_preds, average="weighted")
+        return total_loss / len(loader), acc, f1
 
 
 class CaptioningTrainer:

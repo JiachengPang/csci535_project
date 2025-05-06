@@ -419,12 +419,9 @@ class EarlyStopping:
         min_delta=0.001,
         verbose=True,
     ):
-        checkpoint_path = (
-            f"./results/{name}_checkpoint.pth",
-        )  # ./results/{encoder_choice}_checkpoint.pth
         self.patience = patience
         self.min_delta = min_delta
-        self.checkpoint_path = checkpoint_path
+        self.checkpoint_path = f"./results/{name}_checkpoint.pth"
         self.verbose = verbose
         self.counter = 0
         self.best_score = None
