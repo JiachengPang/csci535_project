@@ -80,12 +80,13 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
         a = batch["audio_inputs"].input_values
         t = batch["text_inputs"].input_ids
         l = batch["labels"]
+        m = batch["text_inputs"]["attention_mask"]
 
-        a, t, l = a.to(device), t.to(device), l.to(device)
+        a, t, l, m = a.to(device), t.to(device), l.to(device), m.to(device)
         # mask = mask.to(device) if mask is not None else None
 
         optimizer.zero_grad()
-        logits = model(a, t, None)
+        logits = model(a, t, m)
         loss = loss_fn(logits, l)
         loss.backward()
         optimizer.step()
@@ -113,10 +114,11 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
             a = batch["audio_inputs"].input_values
             t = batch["text_inputs"].input_ids
             l = batch["labels"]
+            m = batch["text_inputs"]["attention_mask"]
 
-            a, t, l = a.to(device), t.to(device), l.to(device)
+            a, t, l, m = a.to(device), t.to(device), l.to(device), m.to(device)
             # mask = mask.to(device) if mask is not None else None
-            logits = model(a, t, None)
+            logits = model(a, t, m)
             loss = loss_fn(logits, l)
             total_loss += loss.item()
             total_correct += (logits.argmax(dim=1) == l).sum().item()

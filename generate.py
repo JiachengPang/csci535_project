@@ -115,7 +115,7 @@ def main():
     with torch.no_grad():
         for batch in progress_bar:
             # encode
-            if encoder_choice in ("xnorm", "mbt"):
+            if encoder_choice == "xnorm":
                 text_inputs = {
                     "input_ids": batch["text_inputs"]["input_ids"].to(device),
                     "attention_mask": batch["text_inputs"]["attention_mask"].to(device),
@@ -127,7 +127,13 @@ def main():
                 features = encoder(
                     text_inputs, audio_inputs, return_features=True
                 )  # (B, 1536)
+            elif encoder_choice == "mbt":
+                a = batch["audio_inputs"].input_values
+                t = batch["text_inputs"].input_ids
+                m = batch["text_inputs"]["attention_mask"]
 
+                a, t, m = a.to(device), t.to(device), m.to(device)
+                features = encoder(a, t, return_features=True, text_mask=m)
             else:
                 text_embs = batch["text_embs"].to(device)  # (B, 768)
                 audio_embs = batch["audio_embs"].to(device)  # (B, 768)

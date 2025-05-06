@@ -114,9 +114,10 @@ class CaptioningTrainer:
         if self.is_mbt and "text_inputs" in batch and "audio_inputs" in batch:
             a = batch["audio_inputs"].input_values
             t = batch["text_inputs"].input_ids
+            m = batch["text_inputs"]["attention_mask"]
 
-            a, t = a.to(self.device), t.to(self.device)
-            features = self.encoder(a, t, return_features=True)
+            a, t, m = a.to(self.device), t.to(self.device), m.to(self.device)
+            features = self.encoder(a, t, return_features=True, text_mask=m)
         elif "text_inputs" in batch and "audio_inputs" in batch:  # raw
             text_inputs = {
                 k: v.to(self.device) for k, v in batch["text_inputs"].items()
