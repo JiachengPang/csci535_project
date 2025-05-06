@@ -228,3 +228,118 @@ class LateFusionModel(nn.Module):
             audio_logits = self.audio_classifier(audio_emb)
             final_logits = (audio_logits + text_logits) / 2.0
             return final_logits
+
+
+class TextOnlyModel(nn.Module):
+    """
+    A unimodal model for text classification using RoBERTa.
+    Modified to accept both text and audio inputs for trainer compatibility,
+    but ignores audio_inputs.
+    """
+    def __init__(self, roberta: RobertaModel, num_classes, hidden_size=768):
+        """
+        Initializes the TextOnlyModel.
+
+        Args:
+            roberta (RobertaModel): A pre-trained RoBERTa model instance.
+            num_classes (int): The number of output classes.
+            hidden_size (int): The hidden size of the RoBERTa model.
+        """
+        super().__init__()
+        self.text_enc = roberta
+        # Ensure Classifier is defined/imported correctly
+        # Replace with your actual Classifier class if different
+        self.classifier = Classifier(input_size=hidden_size, hidden_size=hidden_size, num_classes=num_classes)
+        print(f"TextOnlyModel initialized (compatible version) with hidden_size={hidden_size}, num_classes={num_classes}")
+
+    # Accept audio_inputs but set a default and ignore it in the method body
+    def forward(self, text_inputs, audio_inputs=None):
+        """
+        Performs the forward pass for text classification.
+
+        Args:
+            text_inputs (dict): A dictionary containing RoBERTa inputs
+                                {'input_ids': ..., 'attention_mask': ...}.
+            audio_inputs (dict, optional): Audio inputs dictionary. Ignored by this model.
+
+        Returns:
+            torch.Tensor: The output logits tensor of shape (batch_size, num_classes).
+        """
+        # --- Only use text_inputs ---
+        if text_inputs is None:
+             raise ValueError("TextOnlyModel requires 'text_inputs', but received None.")
+
+        # Pass only relevant inputs to the RoBERTa encoder
+        outputs = self.text_enc(
+            input_ids=text_inputs.get('input_ids'),
+            attention_mask=text_inputs.get('attention_mask'),
+            return_dict=True # Recommended for easier access to outputs
+        )
+
+        # Use the hidden state of the first token ([CLS])
+        if not hasattr(outputs, 'last_hidden_state'):
+             raise ValueError("RoBERTa output object missing 'last_hidden_state'. Check model configuration or return values.")
+
+        # Extract the [CLS] token's representation
+        pooled_output = outputs.last_hidden_state[:, 0, :]
+
+        # Pass the pooled output through the classifier
+        logits = self.classifier(pooled_output)
+        return logits
+
+class AudioOnlyModel(nn.Module):
+    """
+    A unimodal model for audio classification using HuBERT.
+    Modified to accept both text and audio inputs for trainer compatibility,
+    but ignores text_inputs.
+    """
+    def __init__(self, hubert: HubertModel, num_classes, hidden_size=768):
+        """
+        Initializes the AudioOnlyModel.
+
+        Args:
+            hubert (HubertModel): A pre-trained HuBERT model instance.
+            num_classes (int): The number of output classes.
+            hidden_size (int): The hidden size of the HuBERT model.
+        """
+        super().__init__()
+        self.audio_enc = hubert
+        # Ensure Classifier is defined/imported correctly
+        # Replace with your actual Classifier class if different
+        self.classifier = Classifier(input_size=hidden_size, hidden_size=hidden_size, num_classes=num_classes)
+        print(f"AudioOnlyModel initialized (compatible version) with hidden_size={hidden_size}, num_classes={num_classes}")
+
+    # Accept text_inputs but set a default and ignore it in the method body
+    def forward(self, text_inputs=None, audio_inputs=None):
+        """
+        Performs the forward pass for audio classification.
+
+        Args:
+            text_inputs (dict, optional): Text inputs dictionary. Ignored by this model.
+            audio_inputs (dict): A dictionary containing HuBERT inputs
+                                 {'input_values': ..., 'attention_mask': ...}.
+
+        Returns:
+            torch.Tensor: The output logits tensor of shape (batch_size, num_classes).
+        """
+        # --- Only use audio_inputs ---
+        if audio_inputs is None:
+             raise ValueError("AudioOnlyModel requires 'audio_inputs', but received None.")
+
+        # Pass only relevant inputs to the HuBERT encoder
+        outputs = self.audio_enc(
+            input_values=audio_inputs.get('input_values'),
+            attention_mask=audio_inputs.get('attention_mask'),
+            return_dict=True # Recommended
+        )
+
+        # Ensure last_hidden_state exists in the output object
+        if not hasattr(outputs, 'last_hidden_state'):
+             raise ValueError("HuBERT output object missing 'last_hidden_state'. Check model configuration or return values.")
+
+        # Pool the output features (mean pooling over time)
+        pooled_output = outputs.last_hidden_state.mean(dim=1)
+
+        # Pass the pooled output through the classifier
+        logits = self.classifier(pooled_output)
+        return logits

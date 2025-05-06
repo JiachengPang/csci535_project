@@ -8,3 +8,4 @@ precomputed_embeddings
 .DS_Store
 
 *.pth
+*.env

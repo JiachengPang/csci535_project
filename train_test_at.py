@@ -50,7 +50,21 @@ def parse_options():
 #             "facebook/hubert-base-ls960"
 #         )
 #         tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
+# def collate_fn(batch):
+#     if "audio_emb" in batch[0]:
+#         audio = torch.stack([item["audio_emb"] for item in batch])
+#         text = torch.stack([item["text_emb"] for item in batch])
+#         labels = torch.stack([item["label"] for item in batch])
+#         return audio, text, labels, None
+#     else:
+#         processor = Wav2Vec2FeatureExtractor.from_pretrained(
+#             "facebook/hubert-base-ls960"
+#         )
+#         tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 
+#         audio = [item["audio_array"] for item in batch]
+#         text = [item["text"] for item in batch]
+#         labels = torch.tensor([item["label"] for item in batch])
 #         audio = [item["audio_array"] for item in batch]
 #         text = [item["text"] for item in batch]
 #         labels = torch.tensor([item["label"] for item in batch])
@@ -61,7 +75,19 @@ def parse_options():
 #         text_inputs = tokenizer(
 #             text, return_tensors="pt", padding=True, truncation=True
 #         )
+#         audio_inputs = processor(
+#             audio, return_tensors="pt", padding=True, sampling_rate=16000
+#         )
+#         text_inputs = tokenizer(
+#             text, return_tensors="pt", padding=True, truncation=True
+#         )
 
+#         return (
+#             audio_inputs.input_values,
+#             text_inputs.input_ids,
+#             labels,
+#             text_inputs.attention_mask,
+#         )
 #         return (
 #             audio_inputs.input_values,
 #             text_inputs.input_ids,
@@ -81,10 +107,17 @@ def train_one_epoch(loader, model, optimizer, loss_fn, device, precomputed):
         t = batch["text_inputs"].input_ids
         l = batch["labels"]
 
+    for batch in loader:
+        a = batch["audio_inputs"].input_values
+        t = batch["text_inputs"].input_ids
+        l = batch["labels"]
+
         a, t, l = a.to(device), t.to(device), l.to(device)
+        # mask = mask.to(device) if mask is not None else None
         # mask = mask.to(device) if mask is not None else None
 
         optimizer.zero_grad()
+        logits = model(a, t, None)
         logits = model(a, t, None)
         loss = loss_fn(logits, l)
         loss.backward()
@@ -114,7 +147,14 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
             t = batch["text_inputs"].input_ids
             l = batch["labels"]
 
+        for batch in loader:
+            a = batch["audio_inputs"].input_values
+            t = batch["text_inputs"].input_ids
+            l = batch["labels"]
+
             a, t, l = a.to(device), t.to(device), l.to(device)
+            # mask = mask.to(device) if mask is not None else None
+            logits = model(a, t, None)
             # mask = mask.to(device) if mask is not None else None
             logits = model(a, t, None)
             loss = loss_fn(logits, l)
@@ -149,9 +189,12 @@ def train_test(args):
 
     model = ATmodel(
         num_classes=num_classes, num_latents=args.num_latent, dim=args.adapter_dim
+        num_classes=num_classes, num_latents=args.num_latent, dim=args.adapter_dim
     )
 
+
     model.to(args.device)
+
 
     print(
         "\t Model Loaded | Trainable Params:",
@@ -180,6 +223,12 @@ def train_test(args):
         print(
             f"Epoch {epoch + 1}: Train Loss {train_loss:.4f}, Train Acc {train_acc:.2f}%, Val Loss {val_loss:.4f}, Val Acc {val_acc:.2f}%"
         )
+
+        early_stopper(val_acc, model)
+        if early_stopper.early_stop:
+            print("Early stopping triggered. Stopping training.")
+            break
+
 
         early_stopper(val_acc, model)
         if early_stopper.early_stop:
