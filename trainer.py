@@ -63,22 +63,21 @@ class Trainer:
         f1 = f1_score(all_labels, all_preds, average="weighted")
         return total_loss / len(loader), acc, f1
 
+    def evaluate(self, loader, desc="Val"):
+        self.model.eval()
+        total_loss = 0
+        all_preds, all_labels = [], []
 
-def evaluate(self, loader, desc="Val"):
-    self.model.eval()
-    total_loss = 0
-    all_preds, all_labels = [], []
+        with torch.no_grad():
+            for batch in tqdm(loader, desc=f"{desc}"):
+                loss, preds, labels = self.step(batch)
+                total_loss += loss
+                all_preds.extend(preds.cpu().tolist())
+                all_labels.extend(labels.cpu().tolist())
 
-    with torch.no_grad():
-        for batch in tqdm(loader, desc=f"{desc}"):
-            loss, preds, labels = self.step(batch)
-            total_loss += loss
-            all_preds.extend(preds.cpu().tolist())
-            all_labels.extend(labels.cpu().tolist())
-
-    acc = accuracy_score(all_labels, all_preds)
-    f1 = f1_score(all_labels, all_preds, average="weighted")
-    return total_loss / len(loader), acc, f1
+            acc = accuracy_score(all_labels, all_preds)
+            f1 = f1_score(all_labels, all_preds, average="weighted")
+            return total_loss / len(loader), acc, f1
 
 
 class CaptioningTrainer:
@@ -91,6 +90,7 @@ class CaptioningTrainer:
         optimizer,
         scheduler=None,
         device="cuda",
+        is_mbt=False,
     ):
         self.encoder = encoder.to(device)
         self.projector = projector.to(device)
@@ -103,13 +103,21 @@ class CaptioningTrainer:
             DEFAULT_PROMPT, return_tensors="pt", padding=True, truncation=True
         ).to(device)
 
+        self.is_mbt = is_mbt
+
         # freeze encoder
         self.encoder.eval()
         for param in self.encoder.parameters():
             param.requires_grad = False
 
     def step(self, batch):
-        if "text_inputs" in batch and "audio_inputs" in batch:  # raw
+        if self.is_mbt and "text_inputs" in batch and "audio_inputs" in batch:
+            a = batch["audio_inputs"].input_values
+            t = batch["text_inputs"].input_ids
+
+            a, t = a.to(self.device), t.to(self.device)
+            features = self.encoder(a, t, return_features=True)
+        elif "text_inputs" in batch and "audio_inputs" in batch:  # raw
             text_inputs = {
                 k: v.to(self.device) for k, v in batch["text_inputs"].items()
             }

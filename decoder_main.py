@@ -78,11 +78,12 @@ def main():
     encoder = load_encoder(
         encoder_choice, len(emotion_labels), from_pretrained=ckpt_path
     )
-
+    is_mbt = encoder_choice == "mbt"
     if encoder_choice == "xnorm":
         projector = ProjectionLayer(1536, 2048)
     elif encoder_choice == "mbt":
         projector = ProjectionLayer(768, 2048)
+
     else:
         projector = ProjectionLayer(512, 2048)
 
@@ -128,6 +129,7 @@ def main():
         decoder_tokenizer=caption_tokenizer,
         optimizer=optimizer,
         device=device,
+        is_mbt=is_mbt,
     )
 
     num_epochs = 50
