@@ -183,7 +183,7 @@ def collate_fn_caption_precomputed(batch, caption_tokenizer):
         "text_embs": text_embs,
         "audio_embs": audio_embs,
         "labels": labels,
-        "ids": ids
+        "ids": ids,
     }
 
 
@@ -217,7 +217,7 @@ def collate_fn_caption(
         "text_inputs": text_inputs,
         "audio_inputs": audio_inputs,
         "labels": labels,
-        "ids": ids
+        "ids": ids,
     }
 
 
@@ -241,7 +241,7 @@ def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
     return {"text_inputs": text_inputs, "audio_inputs": audio_inputs, "labels": labels}
 
 
-def collate_fn_precomputed(batch, caption_tokenizer):
+def collate_fn_precomputed(batch):
     text_embs = torch.stack([item["text_emb"] for item in batch], dim=0)  # (B, 768)
     audio_embs = torch.stack([item["audio_emb"] for item in batch], dim=0)  # (B, 768)
 
