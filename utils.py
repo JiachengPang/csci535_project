@@ -8,6 +8,33 @@ from collections import Counter
 import pandas as pd
 
 
+def get_podcast_eval_loader(
+    ds_path,
+    precomputed=False,
+    collate_fn=None,
+    batch_size=16,
+    num_workers=0,
+    seed=42,
+    first_n=0,
+):
+    ds = load_from_disk(ds_path)
+
+    # allow smaller ds
+    if first_n > 0:
+        ds = ds.select(range(min(first_n, len(ds))))
+
+    ds = IEMOCAPDataset(ds, precomputed=precomputed)
+
+    loader = DataLoader(
+        ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+    )
+    return loader
+
+
 def get_iemocap_caption_data_loaders(
     ds_path,
     caption_path="gpt4o_audio_responses.csv",
@@ -206,6 +233,16 @@ def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
     labels = torch.tensor(labels, dtype=torch.long)
 
     return {"text_inputs": text_inputs, "audio_inputs": audio_inputs, "labels": labels}
+
+
+def collate_fn_precomputed(batch, caption_tokenizer):
+    text_embs = torch.stack([item["text_emb"] for item in batch], dim=0)  # (B, 768)
+    audio_embs = torch.stack([item["audio_emb"] for item in batch], dim=0)  # (B, 768)
+
+    return {
+        "text_embs": text_embs,  # (B, 768)
+        "audio_embs": audio_embs,  # (B, 768)
+    }
 
 
 class MetricsLogger:
