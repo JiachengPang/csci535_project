@@ -15,15 +15,18 @@ def get_podcast_eval_loader(
     batch_size=16,
     num_workers=0,
     seed=42,
+    caption_path="gpt4o_audio_responses_podcast.csv",
     first_n=0,
 ):
     ds = load_from_disk(ds_path)
+    caption_df = pd.read_csv(caption_path)
+    caption_mapping = dict(zip(caption_df["id"], caption_df["response"]))
 
     # allow smaller ds
     if first_n > 0:
         ds = ds.select(range(min(first_n, len(ds))))
 
-    ds = IEMOCAPDataset(ds, precomputed=precomputed)
+    ds = IEMOCAPCaptionDataset(ds, caption_mapping, precomputed=precomputed)
 
     loader = DataLoader(
         ds,
@@ -239,16 +242,6 @@ def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):
     labels = torch.tensor(labels, dtype=torch.long)
 
     return {"text_inputs": text_inputs, "audio_inputs": audio_inputs, "labels": labels}
-
-
-def collate_fn_precomputed(batch):
-    text_embs = torch.stack([item["text_emb"] for item in batch], dim=0)  # (B, 768)
-    audio_embs = torch.stack([item["audio_emb"] for item in batch], dim=0)  # (B, 768)
-
-    return {
-        "text_embs": text_embs,  # (B, 768)
-        "audio_embs": audio_embs,  # (B, 768)
-    }
 
 
 class MetricsLogger:

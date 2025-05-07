@@ -10,8 +10,8 @@ from tqdm import tqdm
 from decoder import ProjectionLayer, MultimodalDecoder
 from utils import (
     get_podcast_eval_loader,
-    collate_fn_raw,
-    collate_fn_precomputed,
+    collate_fn_caption,
+    collate_fn_caption_precomputed,
 )
 from decoder_main import load_encoder
 import json
@@ -74,8 +74,11 @@ def main(encoder_choice="mbt"):
         test_loader = get_podcast_eval_loader(
             ds_path="./podcast",
             precomputed=False,
-            collate_fn=lambda batch: collate_fn_raw(
-                batch, text_tokenizer=text_tokenizer, audio_processor=audio_processor
+            collate_fn=lambda batch: collate_fn_caption(
+                batch,
+                text_tokenizer=text_tokenizer,
+                audio_processor=audio_processor,
+                caption_tokenizer=caption_tokenizer,
             ),
             batch_size=16,
         )
@@ -83,7 +86,9 @@ def main(encoder_choice="mbt"):
         test_loader = get_podcast_eval_loader(
             ds_path="./podcast_precomputed",
             precomputed=True,
-            collate_fn=lambda batch: collate_fn_precomputed(batch),
+            collate_fn=lambda batch: collate_fn_caption_precomputed(
+                batch, caption_tokenizer=caption_tokenizer
+            ),
             batch_size=16,
         )
 
@@ -155,16 +160,21 @@ def main(encoder_choice="mbt"):
             )
 
             # store
-            # ground_truths = batch["labels"].clone()
-            # ground_truths[ground_truths == -100] = caption_tokenizer.pad_token_id
-            # ground_truth_texts = decoder.tokenizer.batch_decode(
-            #     ground_truths, skip_special_tokens=True
-            # )
+            wav_filenames = batch["ids"].clone()
+            ground_truths = batch["labels"].clone()
+            ground_truths[ground_truths == -100] = caption_tokenizer.pad_token_id
+            ground_truth_texts = decoder.tokenizer.batch_decode(
+                ground_truths, skip_special_tokens=True
+            )
 
-            for gen_text in generated_texts:
+            for wav_filename, gen_text, ground_truth in zip(
+                wav_filenames, generated_texts, ground_truth_texts
+            ):
                 generations.append(
                     {
+                        "wav_filename": wav_filename,
                         "generated_caption": gen_text.strip(),
+                        "ground_truth": ground_truth.strip(),
                     }
                 )
     # save
