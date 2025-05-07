@@ -51,10 +51,11 @@ class IEMOCAPCaptionDataset(Dataset):
       inputs = {'text': text, 'audio_array': audio_array}
     
     # get caption
-    file_name = d['file'].split('/')[-1]  # Just the filename like 'Ses01F_impro01_F000.wav'
-    caption = self.caption_mapping[file_name]
+    id = d['file'].split('/')[-1]  # Just the filename like 'Ses01F_impro01_F000.wav'
+    caption = self.caption_mapping[id]
     
     return {
       **inputs, 
-      'caption': caption
+      'caption': caption,
+      'id': id
     }
