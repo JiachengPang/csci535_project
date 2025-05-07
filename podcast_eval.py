@@ -78,15 +78,13 @@ def main(encoder_choice="mbt"):
                 batch, text_tokenizer=text_tokenizer, audio_processor=audio_processor
             ),
             batch_size=16,
-            # first_n=100,
         )
     else:
         test_loader = get_podcast_eval_loader(
             ds_path="./podcast_precomputed",
             precomputed=True,
             collate_fn=lambda batch: collate_fn_precomputed(batch),
-            batch_size=166,
-            # # # first_n=100,
+            batch_size=16,
         )
 
     generation_outputs_path = f"./results/{encoder_choice}_podcast_generations.json"
@@ -157,17 +155,16 @@ def main(encoder_choice="mbt"):
             )
 
             # store
-            ground_truths = batch["labels"].clone()
-            ground_truths[ground_truths == -100] = caption_tokenizer.pad_token_id
-            ground_truth_texts = decoder.tokenizer.batch_decode(
-                ground_truths, skip_special_tokens=True
-            )
+            # ground_truths = batch["labels"].clone()
+            # ground_truths[ground_truths == -100] = caption_tokenizer.pad_token_id
+            # ground_truth_texts = decoder.tokenizer.batch_decode(
+            #     ground_truths, skip_special_tokens=True
+            # )
 
-            for gen_text, gt_text in zip(generated_texts, ground_truth_texts):
+            for gen_text in generated_texts:
                 generations.append(
                     {
                         "generated_caption": gen_text.strip(),
-                        "ground_truth": gt_text.strip(),
                     }
                 )
     # save
