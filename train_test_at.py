@@ -1,4 +1,3 @@
-import argparse
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,28 +14,22 @@ from sklearn.metrics import f1_score
 MODEL = "mbt"
 
 
-def parse_options():
-    parser = argparse.ArgumentParser(description="Audio-Text AdaptFormer Training")
-    parser.add_argument("--gpu_id", type=str, default="cuda:0", help="the gpu id")
-    parser.add_argument("--lr", type=float, default=3e-4, help="initial learning rate")
-    parser.add_argument("--batch_size", type=int, default=8, help="batchsize")
-    parser.add_argument(
-        "--num_epochs", type=int, default=50, help="total training epochs"
-    )
-    parser.add_argument("--seed", type=int, default=42, help="random seed")
-    parser.add_argument(
-        "--adapter_dim", type=int, default=8, help="dimension of the adapter"
-    )
-    parser.add_argument(
-        "--num_latent", type=int, default=4, help="number of latent tokens"
-    )
-    parser.add_argument(
-        "--precomputed", action="store_true", help="use precomputed features"
-    )
-    opts = parser.parse_args()
-    torch.manual_seed(opts.seed)
-    opts.device = torch.device(opts.gpu_id)
-    return opts
+def get_params():
+    class Params:
+        def __init__(self):
+            self.gpu_id = "cuda" if torch.cuda.is_available() else "cpu"
+            self.device = torch.device(self.gpu_id)
+            self.lr = 3e-4
+            self.batch_size = 8
+            self.num_epochs = 50
+            self.seed = 42
+            self.adapter_dim = 8
+            self.num_latent = 4
+            self.precomputed = False
+
+    params = Params()
+    torch.manual_seed(params.seed)
+    return params
 
 
 # def collate_fn(batch):
@@ -133,14 +126,14 @@ def val_one_epoch(loader, model, loss_fn, device, precomputed):
     return total_loss / len(loader), (total_correct / total_samples) * 100, f1
 
 
-def train_test(args):
+def train_test(params):
     processor = Wav2Vec2FeatureExtractor.from_pretrained("facebook/hubert-base-ls960")
     tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 
     trainloader, valloader, testloader = get_iemocap_data_loaders(
         path="./iemocap",
         precomputed=False,
-        batch_size=args.batch_size,
+        batch_size=params.batch_size,
         num_workers=0,
         collate_fn=lambda b: collate_fn_raw(b, tokenizer, processor),
     )
@@ -150,29 +143,29 @@ def train_test(args):
     num_classes = len(emotion_labels)
 
     model = ATmodel(
-        num_classes=num_classes, num_latents=args.num_latent, dim=args.adapter_dim
+        num_classes=num_classes, num_latents=params.num_latent, dim=params.adapter_dim
     )
 
-    model.to(args.device)
+    model.to(params.device)
 
     print(
         "\t Model Loaded | Trainable Params:",
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     )
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=params.lr)
     loss_fn = nn.CrossEntropyLoss()
     early_stopper = EarlyStopping(name=MODEL, model=model, patience=5)
 
     logger = MetricsLogger(save_path=f"./results/{MODEL}_training_metrics.json")
 
     best_acc = 0
-    for epoch in range(args.num_epochs):
+    for epoch in range(params.num_epochs):
         train_loss, train_acc, train_f1 = train_one_epoch(
-            trainloader, model, optimizer, loss_fn, args.device, args.precomputed
+            trainloader, model, optimizer, loss_fn, params.device, params.precomputed
         )
         val_loss, val_acc, val_f1 = val_one_epoch(
-            valloader, model, loss_fn, args.device, args.precomputed
+            valloader, model, loss_fn, params.device, params.precomputed
         )
 
         logger.log_train(train_loss, train_acc, train_f1)
@@ -197,7 +190,7 @@ def train_test(args):
         torch.load(f"./results/{MODEL}_checkpoint.pth")
     )  # ./results/{encoder_choice}_checkpoint.pth
     final_test_loss, final_test_acc, final_test_f1 = val_one_epoch(
-        testloader, model, loss_fn, args.device, args.precomputed
+        testloader, model, loss_fn, params.device, params.precomputed
     )
 
     logger.log_test(final_test_loss, final_test_acc, final_test_f1)
@@ -207,5 +200,5 @@ def train_test(args):
 
 
 if __name__ == "__main__":
-    opts = parse_options()
-    train_test(opts)
+    params = get_params()
+    train_test(params)
