@@ -1,0 +1,82 @@
+--- Efficiency Metrics Summary ---
+timestamp: 2025-05-07 01:08:33
+model_type: early
+device: cuda
+total_samples_processed: 980
+batch_size: 16
+max_new_tokens: 50
+model_loading_time_seconds: 2.189
+total_generation_time_seconds: 58.041
+avg_time_per_sample_seconds: 0.05923
+samples_per_second (throughput): 16.88
+peak_gpu_memory_allocated_mb (total): 4503.25
+peak_gpu_memory_reserved_mb (total): 4576.0
+peak_gpu_memory_allocated_mb (models_inference): 4503.25
+peak_gpu_memory_reserved_mb (models_inference): 4576.0
+encoder_parameters: 1577477
+projector_parameters: 43014144
+decoder_parameters: 1100048384
+total_trainable_parameters: 1144640005
+
+--- Efficiency Metrics Summary ---
+timestamp: 2025-05-07 01:09:39
+model_type: late
+device: cuda
+total_samples_processed: 980
+batch_size: 16
+max_new_tokens: 50
+model_loading_time_seconds: 2.189
+total_generation_time_seconds: 55.52
+avg_time_per_sample_seconds: 0.05665
+samples_per_second (throughput): 17.65
+peak_gpu_memory_allocated_mb (total): 4500.29
+peak_gpu_memory_reserved_mb (total): 4582.0
+peak_gpu_memory_allocated_mb (models_inference): 4500.29
+peak_gpu_memory_reserved_mb (models_inference): 4582.0
+encoder_parameters: 2630666
+projector_parameters: 43014144
+decoder_parameters: 1100048384
+total_trainable_parameters: 1145693194
+
+
+--- Efficiency Metrics Summary ---
+timestamp: 2025-05-07 01:07:17
+model_type: xnorm
+device: cuda
+total_samples_processed: 980
+batch_size: 16
+max_new_tokens: 50
+model_loading_time_seconds: 2.759
+total_generation_time_seconds: 66.575
+avg_time_per_sample_seconds: 0.06793
+samples_per_second (throughput): 14.72
+peak_gpu_memory_allocated_mb (total): 12881.79
+peak_gpu_memory_reserved_mb (total): 24616.0
+peak_gpu_memory_allocated_mb (models_inference): 12881.79
+peak_gpu_memory_reserved_mb (models_inference): 24616.0
+encoder_parameters: 9458698
+projector_parameters: 45111296
+decoder_parameters: 1100048384
+total_trainable_parameters: 1154618378
+
+--- Efficiency Metrics Summary ---
+timestamp: 2025-05-07 01:06:02
+model_type: mbt
+device: cuda
+total_samples_processed: 980
+batch_size: 16
+max_new_tokens: 50
+model_loading_time_seconds: 1.703
+total_generation_time_seconds: 67.109
+avg_time_per_sample_seconds: 0.06848
+samples_per_second (throughput): 14.6
+peak_gpu_memory_allocated_mb (total): 12833.55
+peak_gpu_memory_reserved_mb (total): 24554.0
+peak_gpu_memory_allocated_mb (models_inference): 12833.55
+peak_gpu_memory_reserved_mb (models_inference): 24554.0
+encoder_parameters: 357365
+projector_parameters: 43538432
+decoder_parameters: 1100048384
+total_trainable_parameters: 1143944181
+
+
