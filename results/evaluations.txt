@@ -1,3 +1,4 @@
+
 ==================================================
  Calculating Accuracy / Summary Statistics for early_test_generations.json 
 ==================================================
@@ -6,8 +7,8 @@ Total Pairs Processed: 980
 Successful Structured Evaluations ('is_match' obtained): 980
 Processing Success Rate: 100.0%
 ------------------------------
-Pairs Classified as 'is_match: True' by Model: 447 (out of 980 successful)
-Model Match Rate (among successful evals): 45.61%
+Pairs Classified as 'is_match: True' by Model: 384 (out of 980 successful)
+Model Match Rate (among successful evals): 39.18%
 ------------------------------
 Status Counts:
   - Success (Structured): 980
@@ -22,40 +23,8 @@ Total Pairs Processed: 980
 Successful Structured Evaluations ('is_match' obtained): 980
 Processing Success Rate: 100.0%
 ------------------------------
-Pairs Classified as 'is_match: True' by Model: 426 (out of 980 successful)
-Model Match Rate (among successful evals): 43.47%
-------------------------------
-Status Counts:
-  - Success (Structured): 980
-
-Note: 'Model Match Rate' reflects how often the model found captions similar based on the 'roughly similar at all' criteria, among pairs it successfully evaluated with a structured output.
-
-==================================================
- Calculating Accuracy / Summary Statistics for xnorm_test_generations.json 
-==================================================
-
-Total Pairs Processed: 980
-Successful Structured Evaluations ('is_match' obtained): 980
-Processing Success Rate: 100.0%
-------------------------------
-Pairs Classified as 'is_match: True' by Model: 621 (out of 980 successful)
-Model Match Rate (among successful evals): 63.37%
-------------------------------
-Status Counts:
-  - Success (Structured): 980
-
-Note: 'Model Match Rate' reflects how often the model found captions similar based on the 'roughly similar at all' criteria, among pairs it successfully evaluated with a structured output.
-
-==================================================
- Calculating Accuracy / Summary Statistics for mbt_test_generations.json 
-==================================================
-
-Total Pairs Processed: 980
-Successful Structured Evaluations ('is_match' obtained): 980
-Processing Success Rate: 100.0%
-------------------------------
-Pairs Classified as 'is_match: True' by Model: 437 (out of 980 successful)
-Model Match Rate (among successful evals): 44.59%
+Pairs Classified as 'is_match: True' by Model: 383 (out of 980 successful)
+Model Match Rate (among successful evals): 39.08%
 ------------------------------
 Status Counts:
   - Success (Structured): 980
