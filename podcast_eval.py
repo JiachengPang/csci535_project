@@ -160,7 +160,7 @@ def main(encoder_choice="mbt"):
             )
 
             # store
-            wav_filenames = batch["ids"].clone()
+            wav_filenames = batch["ids"]
             ground_truths = batch["labels"].clone()
             ground_truths[ground_truths == -100] = caption_tokenizer.pad_token_id
             ground_truth_texts = decoder.tokenizer.batch_decode(
