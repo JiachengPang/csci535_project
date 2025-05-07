@@ -1,4 +1,3 @@
-import argparse
 import numpy as np
 import torch
 import torch.nn as nn
@@ -383,5 +382,5 @@ def train_test(args):
 
 
 if __name__ == "__main__":
-    opts = parse_options()
-    train_test(opts)
+    params = get_params()
+    train_test(params)
