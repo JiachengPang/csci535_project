@@ -1,0 +1,5 @@
+timestamp,model_type,device,total_samples_processed,batch_size,max_new_tokens,model_loading_time_seconds,total_generation_time_seconds,avg_time_per_sample_seconds,samples_per_second (throughput),peak_gpu_memory_allocated_mb (total),peak_gpu_memory_reserved_mb (total),peak_gpu_memory_allocated_mb (models_inference),peak_gpu_memory_reserved_mb (models_inference),encoder_parameters,projector_parameters,decoder_parameters,total_trainable_parameters
+2025-05-07 01:06:02,mbt,cuda,980,16,50,1.703,67.109,0.06848,14.6,12833.55,24554.0,12833.55,24554.0,357365,43538432,1100048384,1143944181
+2025-05-07 01:07:17,xnorm,cuda,980,16,50,2.759,66.575,0.06793,14.72,12881.79,24616.0,12881.79,24616.0,9458698,45111296,1100048384,1154618378
+2025-05-07 01:08:33,early,cuda,980,16,50,2.189,58.041,0.05923,16.88,4503.25,4576.0,4503.25,4576.0,1577477,43014144,1100048384,1144640005
+2025-05-07 01:09:39,late,cuda,980,16,50,2.189,55.52,0.05665,17.65,4500.29,4582.0,4500.29,4582.0,2630666,43014144,1100048384,1145693194

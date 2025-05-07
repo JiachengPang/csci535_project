@@ -141,22 +141,22 @@ def get_iemocap_data_loaders(
 
 
 def collate_fn_caption_precomputed(batch, caption_tokenizer):
-    text_embs = torch.stack([item["text_emb"] for item in batch], dim=0)  # (B, 768)
-    audio_embs = torch.stack([item["audio_emb"] for item in batch], dim=0)  # (B, 768)
-
+    text_embs = torch.stack([item["text_emb"] for item in batch], dim=0)
+    audio_embs = torch.stack([item["audio_emb"] for item in batch], dim=0)
     captions = [item["caption"] for item in batch]
+    ids = [item["id"] for item in batch]
+
     labels = caption_tokenizer(
         captions, padding=True, truncation=True, max_length=128, return_tensors="pt"
-    ).input_ids  # (B, L)
+    ).input_ids
 
-    labels[
-        labels == caption_tokenizer.pad_token_id
-    ] = -100  # ignore PAD tokens for loss
+    labels[labels == caption_tokenizer.pad_token_id] = -100
 
     return {
-        "text_embs": text_embs,  # (B, 768)
-        "audio_embs": audio_embs,  # (B, 768)
-        "labels": labels,  # (B, L)
+        "text_embs": text_embs,
+        "audio_embs": audio_embs,
+        "labels": labels,
+        "ids": ids
     }
 
 
@@ -166,6 +166,7 @@ def collate_fn_caption(
     texts = [item["text"] for item in batch]
     audios = [item["audio_array"] for item in batch]
     captions = [item["caption"] for item in batch]
+    ids = [item["id"] for item in batch]
 
     text_inputs = text_tokenizer(
         texts,
@@ -173,11 +174,11 @@ def collate_fn_caption(
         truncation=True,
         return_tensors="pt",
         return_attention_mask=True,
-    )  # 'input_ids', 'attention_mask'
+    )
 
     audio_inputs = audio_processor(
         audios, sampling_rate=sampling_rate, padding=True, return_tensors="pt"
-    )  # 'input_values'
+    )
 
     labels = caption_tokenizer(
         captions, padding=True, truncation=True, max_length=128, return_tensors="pt"
@@ -185,7 +186,12 @@ def collate_fn_caption(
 
     labels[labels == caption_tokenizer.pad_token_id] = -100
 
-    return {"text_inputs": text_inputs, "audio_inputs": audio_inputs, "labels": labels}
+    return {
+        "text_inputs": text_inputs,
+        "audio_inputs": audio_inputs,
+        "labels": labels,
+        "ids": ids
+    }
 
 
 def collate_fn_raw(batch, text_tokenizer, audio_processor, sampling_rate=16000):

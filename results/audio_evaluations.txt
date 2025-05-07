@@ -1,0 +1,84 @@
+
+
+2025-05-07 00:57:46 - Evaluation Run Summary
+=========================================================================
+Calculating Accuracy / Summary Statistics for early_test_generations.json
+=========================================================================
+
+Total Items in Results List (processed or errored): 980
+Successful Evaluations ('is_match' obtained): 980
+  Processing Success Rate (successful / total in list): 100.0%
+------------------------------
+Pairs Classified as 'is_match: True' by Model: 492 (out of 980 successful)
+Model Match Rate (True / successful evals): 50.2%
+------------------------------
+Status Counts from Results List:
+  - Success ('is_match' obtained): 980
+
+Note: 'Model Match Rate' reflects how often the model determined a match among successfully evaluated items.
+The 'Processing Success Rate' reflects how many items in the final results list got a definitive 'is_match' value.
+Items skipped before API call (e.g., audio not found) are not included in 'Total Items in Results List'.
+=========================================================================
+
+
+2025-05-07 00:58:37 - Evaluation Run Summary
+========================================================================
+Calculating Accuracy / Summary Statistics for late_test_generations.json
+========================================================================
+
+Total Items in Results List (processed or errored): 980
+Successful Evaluations ('is_match' obtained): 980
+  Processing Success Rate (successful / total in list): 100.0%
+------------------------------
+Pairs Classified as 'is_match: True' by Model: 578 (out of 980 successful)
+Model Match Rate (True / successful evals): 59.0%
+------------------------------
+Status Counts from Results List:
+  - Success ('is_match' obtained): 980
+
+Note: 'Model Match Rate' reflects how often the model determined a match among successfully evaluated items.
+The 'Processing Success Rate' reflects how many items in the final results list got a definitive 'is_match' value.
+Items skipped before API call (e.g., audio not found) are not included in 'Total Items in Results List'.
+========================================================================
+
+
+2025-05-07 00:59:47 - Evaluation Run Summary
+=========================================================================
+Calculating Accuracy / Summary Statistics for xnorm_test_generations.json
+=========================================================================
+
+Total Items in Results List (processed or errored): 980
+Successful Evaluations ('is_match' obtained): 980
+  Processing Success Rate (successful / total in list): 100.0%
+------------------------------
+Pairs Classified as 'is_match: True' by Model: 717 (out of 980 successful)
+Model Match Rate (True / successful evals): 73.2%
+------------------------------
+Status Counts from Results List:
+  - Success ('is_match' obtained): 980
+
+Note: 'Model Match Rate' reflects how often the model determined a match among successfully evaluated items.
+The 'Processing Success Rate' reflects how many items in the final results list got a definitive 'is_match' value.
+Items skipped before API call (e.g., audio not found) are not included in 'Total Items in Results List'.
+=========================================================================
+
+
+2025-05-07 01:01:13 - Evaluation Run Summary
+=======================================================================
+Calculating Accuracy / Summary Statistics for mbt_test_generations.json
+=======================================================================
+
+Total Items in Results List (processed or errored): 980
+Successful Evaluations ('is_match' obtained): 980
+  Processing Success Rate (successful / total in list): 100.0%
+------------------------------
+Pairs Classified as 'is_match: True' by Model: 594 (out of 980 successful)
+Model Match Rate (True / successful evals): 60.6%
+------------------------------
+Status Counts from Results List:
+  - Success ('is_match' obtained): 980
+
+Note: 'Model Match Rate' reflects how often the model determined a match among successfully evaluated items.
+The 'Processing Success Rate' reflects how many items in the final results list got a definitive 'is_match' value.
+Items skipped before API call (e.g., audio not found) are not included in 'Total Items in Results List'.
+=======================================================================
